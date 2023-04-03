@@ -1,0 +1,19 @@
+[package]
+name = "deno_semver"
+version = "0.1.0"
+edition = "2021"
+description = "Semver for Deno"
+homepage = "https://deno.land/"
+repository = "https://github.com/denoland/deno_semver"
+documentation = "https://docs.rs/deno_semver"
+authors = ["the Deno authors"]
+license = "MIT"
+
+[dependencies]
+monch = "0.4.1"
+serde = { version = "1.0.130", features = ["derive", "rc"] }
+thiserror = "1.0.24"
+
+[dev-dependencies]
+pretty_assertions = "1.0.0"
+serde_json = { version = "1.0.67", features = ["preserve_order"] }
