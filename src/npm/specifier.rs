@@ -3,14 +3,14 @@
 use monch::*;
 use thiserror::Error;
 
-use super::range::Partial;
-use super::range::VersionRange;
-use super::range::VersionRangeSet;
-use super::range::XRange;
-use super::RangeSetOrTag;
-use super::VersionReq;
+use crate::range::Partial;
+use crate::range::VersionRange;
+use crate::range::VersionRangeSet;
+use crate::range::XRange;
+use crate::RangeSetOrTag;
+use crate::VersionReq;
 
-use super::is_valid_tag;
+use crate::is_valid_tag;
 
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
 #[error("Invalid npm specifier version requirement. {source}")]
