@@ -13,6 +13,7 @@ license = "MIT"
 monch = "0.4.1"
 serde = { version = "1.0.130", features = ["derive", "rc"] }
 thiserror = "1.0.24"
+url = "2.3.1"
 
 [dev-dependencies]
 pretty_assertions = "1.0.0"

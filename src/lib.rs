@@ -7,21 +7,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
-mod npm;
+pub mod npm;
 mod range;
-mod specifier;
 
-pub use self::npm::NpmVersionParseError;
-pub use self::npm::NpmVersionReqParseError;
 pub use self::range::Partial;
 pub use self::range::VersionBoundKind;
 pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
 pub use self::range::XRange;
-pub use self::specifier::NpmVersionReqSpecifierParseError;
-
-use self::npm::parse_npm_version_req;
-use self::specifier::parse_version_req_from_specifier;
 
 #[derive(Error, Debug)]
 #[error("Invalid version. {source}")]
@@ -70,7 +63,9 @@ impl Version {
   }
 
   /// Parse a version from npm.
-  pub fn parse_from_npm(text: &str) -> Result<Version, NpmVersionParseError> {
+  pub fn parse_from_npm(
+    text: &str,
+  ) -> Result<Version, npm::NpmVersionParseError> {
     npm::parse_npm_version(text)
   }
 }
@@ -199,12 +194,14 @@ impl VersionReq {
 
   pub fn parse_from_specifier(
     specifier: &str,
-  ) -> Result<Self, NpmVersionReqSpecifierParseError> {
-    parse_version_req_from_specifier(specifier)
+  ) -> Result<Self, npm::NpmVersionReqSpecifierParseError> {
+    npm::specifier::parse_version_req_from_specifier(specifier)
   }
 
-  pub fn parse_from_npm(text: &str) -> Result<Self, NpmVersionReqParseError> {
-    parse_npm_version_req(text)
+  pub fn parse_from_npm(
+    text: &str,
+  ) -> Result<Self, npm::NpmVersionReqParseError> {
+    npm::parse_npm_version_req(text)
   }
 
   #[cfg(test)]
