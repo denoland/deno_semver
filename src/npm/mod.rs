@@ -33,7 +33,7 @@ pub fn is_valid_npm_tag(value: &str) -> bool {
 // A lot of the below is a re-implementation of parts of https://github.com/npm/node-semver
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[error("Invalid npm version. {source}")]
 pub struct NpmVersionParseError {
   #[source]
@@ -69,7 +69,7 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
   .map_err(|err| NpmVersionParseError { source: err })
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[error("Invalid npm version requirement. {source}")]
 pub struct NpmVersionReqParseError {
   #[source]
@@ -431,7 +431,7 @@ fn part(input: &str) -> ParseResult<&str> {
   )(input)
 }
 
-#[derive(Debug, Error, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Error, Clone)]
 #[error("Invalid npm package name and version reference '{text}'. {message}")]
 pub struct NpmPackageNvReferenceParseError {
   pub message: String,
@@ -515,7 +515,7 @@ impl std::fmt::Display for NpmPackageNvReference {
   }
 }
 
-#[derive(Debug, Error, PartialEq, Eq, Hash)]
+#[derive(Debug, Error, Clone)]
 #[error("Invalid npm package name and version '{text}'. {message}")]
 pub struct NpmPackageNvParseError {
   pub message: String,
@@ -598,7 +598,7 @@ fn parse_nv(input: &str) -> monch::ParseResult<NpmPackageNv> {
   }
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Error, Debug, Clone)]
 pub enum NpmPackageReqReferenceParseError {
   #[error("Not an npm specifier.")]
   NotNpmSpecifier,
@@ -698,7 +698,7 @@ impl std::fmt::Display for NpmPackageReqReference {
   }
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Error, Debug, Clone)]
 pub enum VersionReqPartsParseError {
   #[error("Did not contain a package name.")]
   NoPackageName,
@@ -709,7 +709,7 @@ pub enum VersionReqPartsParseError {
   },
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Error, Debug, Clone)]
 #[error("Invalid npm package requirement '{text}'. {source:#}")]
 pub struct NpmPackageReqParseError {
   pub text: String,

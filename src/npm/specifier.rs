@@ -12,7 +12,7 @@ use crate::VersionReq;
 
 use crate::is_valid_tag;
 
-#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Error, Debug, Clone)]
 #[error("Invalid npm specifier version requirement. {source}")]
 pub struct NpmVersionReqSpecifierParseError {
   #[source]

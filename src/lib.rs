@@ -16,7 +16,7 @@ pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
 pub use self::range::XRange;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 #[error("Invalid version. {source}")]
 pub struct VersionParseError {
   #[source]
