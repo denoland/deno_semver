@@ -718,9 +718,7 @@ pub struct NpmPackageReqParseError {
 }
 
 /// The name and version constraint component of an `NpmPackageReqReference`.
-#[derive(
-  Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
-)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct NpmPackageReq {
   pub name: String,
   pub version_req: Option<VersionReq>,
@@ -772,6 +770,28 @@ impl NpmPackageReq {
       Err(VersionReqPartsParseError::NoPackageName)
     } else {
       Ok(Self { name, version_req })
+    }
+  }
+}
+
+impl Serialize for NpmPackageReq {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    serializer.serialize_str(&self.to_string())
+  }
+}
+
+impl<'de> Deserialize<'de> for NpmPackageReq {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    let text = String::deserialize(deserializer)?;
+    match NpmPackageReq::from_str(&text) {
+      Ok(req) => Ok(req),
+      Err(err) => Err(serde::de::Error::custom(err)),
     }
   }
 }
@@ -1582,6 +1602,15 @@ mod tests {
         .to_string(),
       "Invalid npm specifier 'npm://test'. Did not contain a package name."
     );
+  }
+
+  #[test]
+  fn serialize_deserialize_package_req() {
+    let package_req = NpmPackageReq::from_str("test@^1.0").unwrap();
+    let json = serde_json::to_string(&package_req).unwrap();
+    assert_eq!(json, "\"test@^1.0\"");
+    let result = serde_json::from_str::<NpmPackageReq>(&json).unwrap();
+    assert_eq!(result, package_req);
   }
 
   #[test]
