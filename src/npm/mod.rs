@@ -731,7 +731,12 @@ pub struct NpmPackageReq {
 
 impl std::fmt::Display for NpmPackageReq {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}@{}", self.name, self.version_req)
+    if self.version_req.version_text() == "*" {
+      // do not write out the version requirement when it's the wildcard version
+      write!(f, "{}", self.name)
+    } else {
+      write!(f, "{}@{}", self.name, self.version_req)
+    }
   }
 }
 
@@ -835,7 +840,6 @@ impl Ord for NpmPackageReq {
 
     match self.name.cmp(&other.name) {
       Ordering::Equal => {
-        panic!("STOP");
         cmp_specifier_version_req(&self.version_req, &other.version_req)
       }
       ordering => ordering,
