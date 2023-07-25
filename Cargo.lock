@@ -23,6 +23,7 @@ name = "deno_semver"
 version = "0.2.2"
 dependencies = [
  "monch",
+ "once_cell",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -82,6 +83,12 @@ name = "monch"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1120c1ab92ab8cdacb3b89ac9a214f512d2e78e90e3b57c00d9551ced19f646f"
+
+[[package]]
+name = "once_cell"
+version = "1.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "output_vt100"
