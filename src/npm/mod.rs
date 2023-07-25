@@ -3,11 +3,16 @@
 use std::cmp::Ordering;
 
 use monch::*;
+use once_cell::sync::Lazy;
 use thiserror::Error;
 
 use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
+
+/// Specifier that points to the wildcard version.
+pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
+  Lazy::new(|| VersionReq::parse_from_specifier("*").unwrap());
 
 pub use self::specifier::NpmVersionReqSpecifierParseError;
 
@@ -617,7 +622,7 @@ pub enum NpmPackageReqReferenceParseError {
 /// A reference to an npm package's name, version constraint, and potential sub path.
 ///
 /// This contains all the information found in an npm specifier.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NpmPackageReqReference {
   pub req: NpmPackageReq,
   pub sub_path: Option<String>,
@@ -718,17 +723,19 @@ pub struct NpmPackageReqParseError {
 }
 
 /// The name and version constraint component of an `NpmPackageReqReference`.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NpmPackageReq {
   pub name: String,
-  pub version_req: Option<VersionReq>,
+  pub version_req: VersionReq,
 }
 
 impl std::fmt::Display for NpmPackageReq {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match &self.version_req {
-      Some(req) => write!(f, "{}@{}", self.name, req),
-      None => write!(f, "{}", self.name),
+    if self.version_req.version_text() == "*" {
+      // do not write out the version requirement when it's the wildcard version
+      write!(f, "{}", self.name)
+    } else {
+      write!(f, "{}@{}", self.name, self.version_req)
     }
   }
 }
@@ -769,7 +776,11 @@ impl NpmPackageReq {
     if name.is_empty() {
       Err(VersionReqPartsParseError::NoPackageName)
     } else {
-      Ok(Self { name, version_req })
+      Ok(Self {
+        name,
+        version_req: version_req
+          .unwrap_or_else(|| WILDCARD_VERSION_REQ.clone()),
+      })
     }
   }
 }
@@ -829,15 +840,7 @@ impl Ord for NpmPackageReq {
 
     match self.name.cmp(&other.name) {
       Ordering::Equal => {
-        match &other.version_req {
-          Some(b_req) => {
-            match &self.version_req {
-              Some(a_req) => cmp_specifier_version_req(a_req, b_req),
-              None => Ordering::Greater, // prefer b, since a is *
-            }
-          }
-          None => Ordering::Less, // prefer a, since b is *
-        }
+        cmp_specifier_version_req(&self.version_req, &other.version_req)
       }
       ordering => ordering,
     }
@@ -1463,7 +1466,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
       }
@@ -1474,7 +1477,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: Some(VersionReq::parse_from_specifier("1").unwrap()),
+          version_req: VersionReq::parse_from_specifier("1").unwrap(),
         },
         sub_path: None,
       }
@@ -1486,7 +1489,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: Some(VersionReq::parse_from_specifier("~1.1").unwrap()),
+          version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
         sub_path: Some("sub_path".to_string()),
       }
@@ -1497,7 +1500,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
       }
@@ -1508,7 +1511,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
       }
@@ -1519,7 +1522,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "test".to_string(),
-          version_req: Some(VersionReq::parse_from_specifier("^1.2").unwrap()),
+          version_req: VersionReq::parse_from_specifier("^1.2").unwrap(),
         },
         sub_path: None,
       }
@@ -1530,7 +1533,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "test".to_string(),
-          version_req: Some(VersionReq::parse_from_specifier("~1.1").unwrap()),
+          version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
         sub_path: Some("sub_path".to_string()),
       }
@@ -1541,7 +1544,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
       }
@@ -1561,7 +1564,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "@package/test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
       }
@@ -1571,7 +1574,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
       }
@@ -1581,7 +1584,7 @@ mod tests {
       NpmPackageReqReference {
         req: NpmPackageReq {
           name: "test".to_string(),
-          version_req: None,
+          version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
       }
