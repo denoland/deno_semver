@@ -13,15 +13,15 @@ use crate::VersionReq;
 use crate::is_valid_tag;
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid npm specifier version requirement. {source}")]
-pub struct NpmVersionReqSpecifierParseError {
+#[error("Invalid specifier version requirement. {source}")]
+pub struct VersionReqSpecifierParseError {
   #[source]
   pub source: ParseErrorFailureError,
 }
 
 pub fn parse_version_req_from_specifier(
   text: &str,
-) -> Result<VersionReq, NpmVersionReqSpecifierParseError> {
+) -> Result<VersionReq, VersionReqSpecifierParseError> {
   with_failure_handling(|input| {
     map_res(version_range, |result| {
       let (new_input, range_result) = match result {
@@ -47,13 +47,13 @@ pub fn parse_version_req_from_specifier(
       ))
     })(input)
   })(text)
-  .map_err(|err| NpmVersionReqSpecifierParseError { source: err })
+  .map_err(|err| VersionReqSpecifierParseError { source: err })
 }
 
 // Note: Although the code below looks very similar to what's used for
 // parsing npm version requirements, the code here is more strict
 // in order to not allow for people to get ridiculous when using
-// npm specifiers.
+// npm/deno specifiers.
 //
 // A lot of the code below is adapted from https://github.com/npm/node-semver
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)

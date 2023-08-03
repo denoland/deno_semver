@@ -3,18 +3,14 @@
 use std::cmp::Ordering;
 
 use monch::*;
-use once_cell::sync::Lazy;
 use thiserror::Error;
 
 use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
 
-/// Specifier that points to the wildcard version.
-pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
-  Lazy::new(|| VersionReq::parse_from_specifier("*").unwrap());
-
-pub use self::specifier::NpmVersionReqSpecifierParseError;
+use crate::VersionReqSpecifierParseError;
+use crate::WILDCARD_VERSION_REQ;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -24,8 +20,6 @@ use super::VersionRange;
 use super::VersionRangeSet;
 use super::VersionReq;
 use super::XRange;
-
-pub(super) mod specifier;
 
 pub fn is_valid_npm_tag(value: &str) -> bool {
   // a valid tag is anything that doesn't get url encoded
@@ -491,13 +485,13 @@ impl NpmPackageNvReference {
 
   pub fn as_specifier(&self) -> Url {
     let version_text = self.nv.version.to_string();
-    let capacity = 4
+    let capacity = 5 /* npm:/ */
       + self.nv.name.len()
-      + 1
+      + 1 /* @ */
       + version_text.len()
-      + self.sub_path.as_ref().map(|p| p.len() + 1).unwrap_or(0);
+      + self.sub_path.as_ref().map(|p| p.len() + 1 /* slash  */).unwrap_or(0);
     let mut text = String::with_capacity(capacity);
-    text.push_str("npm:");
+    text.push_str("npm:/");
     text.push_str(&self.nv.name);
     text.push('@');
     text.push_str(&version_text);
@@ -560,7 +554,7 @@ impl NpmPackageNv {
   }
 
   pub fn scope(&self) -> Option<&str> {
-    if self.name.starts_with('@') && self.name.contains('/') {
+    if self.name.starts_with('@') {
       self.name.split('/').next()
     } else {
       None
@@ -607,13 +601,11 @@ fn parse_nv(input: &str) -> monch::ParseResult<NpmPackageNv> {
 pub enum NpmPackageReqReferenceParseError {
   #[error("Not an npm specifier.")]
   NotNpmSpecifier,
-  #[error("Not a valid package: {0}")]
-  InvalidPackage(String),
   #[error("Invalid npm specifier '{specifier}'. {source:#}")]
   Invalid {
     specifier: String,
     #[source]
-    source: VersionReqPartsParseError,
+    source: NpmVersionReqPartsParseError,
   },
   #[error("Invalid package specifier 'npm:{current}'. Did you mean to write 'npm:{suggested}'?")]
   InvalidPathWithVersion { current: String, suggested: String },
@@ -640,26 +632,15 @@ impl NpmPackageReqReference {
     specifier: &str,
   ) -> Result<Self, NpmPackageReqReferenceParseError> {
     let original_text = specifier;
-    let specifier = match specifier.strip_prefix("npm:") {
-      Some(s) => {
-        // Strip leading slash, which might come from import map
-        s.strip_prefix('/').unwrap_or(s)
-      }
+    let input = match specifier.strip_prefix("npm:") {
+      Some(input) => input,
       None => {
-        // don't allocate a string here and instead use a static string
-        // because this is hit a lot when a url is not an npm specifier
+        // this is hit a lot when a url is not an npm specifier
+        // so ensure nothing heavy occurs before this
         return Err(NpmPackageReqReferenceParseError::NotNpmSpecifier);
       }
     };
-    let parts = specifier.split('/').collect::<Vec<_>>();
-    let name_part_len = if specifier.starts_with('@') { 2 } else { 1 };
-    if parts.len() < name_part_len {
-      return Err(NpmPackageReqReferenceParseError::InvalidPackage(
-        specifier.to_string(),
-      ));
-    }
-    let name_parts = &parts[0..name_part_len];
-    let req = match NpmPackageReq::parse_from_parts(name_parts) {
+    let (req, sub_path) = match NpmPackageReq::parse_with_path(input) {
       Ok(pkg_req) => pkg_req,
       Err(err) => {
         return Err(NpmPackageReqReferenceParseError::Invalid {
@@ -668,15 +649,10 @@ impl NpmPackageReqReference {
         });
       }
     };
-    let sub_path = if parts.len() == name_parts.len() {
+    let sub_path = if sub_path.is_empty() || sub_path == "/" {
       None
     } else {
-      let sub_path = parts[name_part_len..].join("/");
-      if sub_path.is_empty() {
-        None
-      } else {
-        Some(sub_path)
-      }
+      Some(sub_path.to_string())
     };
 
     if let Some(sub_path) = &sub_path {
@@ -689,7 +665,7 @@ impl NpmPackageReqReference {
       }
     }
 
-    Ok(NpmPackageReqReference { req, sub_path })
+    Ok(Self { req, sub_path })
   }
 }
 
@@ -704,13 +680,15 @@ impl std::fmt::Display for NpmPackageReqReference {
 }
 
 #[derive(Error, Debug, Clone)]
-pub enum VersionReqPartsParseError {
+pub enum NpmVersionReqPartsParseError {
   #[error("Did not contain a package name.")]
   NoPackageName,
+  #[error("Did not contain a valid package name.")]
+  InvalidPackageName,
   #[error("Invalid version requirement. {source:#}")]
   VersionReq {
     #[source]
-    source: NpmVersionReqSpecifierParseError,
+    source: VersionReqSpecifierParseError,
   },
 }
 
@@ -719,7 +697,7 @@ pub enum VersionReqPartsParseError {
 pub struct NpmPackageReqParseError {
   pub text: String,
   #[source]
-  pub source: VersionReqPartsParseError,
+  pub source: NpmVersionReqPartsParseError,
 }
 
 /// The name and version constraint component of an `NpmPackageReqReference`.
@@ -743,8 +721,25 @@ impl std::fmt::Display for NpmPackageReq {
 impl NpmPackageReq {
   #[allow(clippy::should_implement_trait)]
   pub fn from_str(text: &str) -> Result<Self, NpmPackageReqParseError> {
-    let parts = text.split('/').collect::<Vec<_>>();
-    match NpmPackageReq::parse_from_parts(&parts) {
+    fn from_str_inner(
+      text: &str,
+    ) -> Result<NpmPackageReq, NpmVersionReqPartsParseError> {
+      let (req, path) = NpmPackageReq::parse_with_path(text)?;
+      if !path.is_empty() {
+        return Err(NpmVersionReqPartsParseError::VersionReq {
+          source: VersionReqSpecifierParseError {
+            source: ParseErrorFailure::new(
+              &text[text.len() - path.len() - 1..],
+              "Unexpected character '/'",
+            )
+            .into_error(),
+          },
+        });
+      }
+      Ok(req)
+    }
+
+    match from_str_inner(text) {
       Ok(req) => Ok(req),
       Err(err) => Err(NpmPackageReqParseError {
         text: text.to_string(),
@@ -753,35 +748,50 @@ impl NpmPackageReq {
     }
   }
 
-  fn parse_from_parts(
-    name_parts: &[&str],
-  ) -> Result<Self, VersionReqPartsParseError> {
-    assert!(!name_parts.is_empty()); // this should be provided the result of a string split
-    let last_name_part = &name_parts[name_parts.len() - 1];
-    let (name, version_req) = if let Some(at_index) = last_name_part.rfind('@')
+  fn parse_with_path(
+    input: &str,
+  ) -> Result<(Self, &str), NpmVersionReqPartsParseError> {
+    // Strip leading slash, which might come from import map
+    let input = input.strip_prefix('/').unwrap_or(input);
+    // parse the first name part
+    let (first_part, input) = input.split_once('/').unwrap_or((input, ""));
+    if first_part.is_empty() {
+      return Err(NpmVersionReqPartsParseError::NoPackageName);
+    }
+    // if it starts with an @, parse the second name part
+    let (maybe_scope, last_name_part, sub_path) = if first_part.starts_with('@')
     {
-      let version = &last_name_part[at_index + 1..];
-      let last_name_part = &last_name_part[..at_index];
-      let version_req = VersionReq::parse_from_specifier(version)
-        .map_err(|err| VersionReqPartsParseError::VersionReq { source: err })?;
-      let name = if name_parts.len() == 1 {
-        last_name_part.to_string()
-      } else {
-        format!("{}/{}", name_parts[0], last_name_part)
-      };
-      (name, Some(version_req))
+      let (second_part, input) = input.split_once('/').unwrap_or((input, ""));
+      if second_part.is_empty() {
+        return Err(NpmVersionReqPartsParseError::InvalidPackageName);
+      }
+      (Some(first_part), second_part, input)
     } else {
-      (name_parts.join("/"), None)
+      (None, first_part, input)
     };
-    if name.is_empty() {
-      Err(VersionReqPartsParseError::NoPackageName)
+
+    let (last_name_part, version_req) = if let Some((last_name_part, version)) =
+      last_name_part.rsplit_once('@')
+    {
+      let version_req =
+        VersionReq::parse_from_specifier(version).map_err(|err| {
+          NpmVersionReqPartsParseError::VersionReq { source: err }
+        })?;
+      (last_name_part, Some(version_req))
     } else {
-      Ok(Self {
-        name,
+      (last_name_part, None)
+    };
+    Ok((
+      Self {
+        name: match maybe_scope {
+          Some(scope) => format!("{}/{}", scope, last_name_part),
+          None => last_name_part.to_string(),
+        },
         version_req: version_req
           .unwrap_or_else(|| WILDCARD_VERSION_REQ.clone()),
-      })
-    }
+      },
+      sub_path,
+    ))
   }
 }
 
@@ -1440,7 +1450,7 @@ mod tests {
     );
     assert_eq!(
       package_nv_ref.as_specifier().as_str(),
-      "npm:package@1.2.3/test"
+      "npm:/package@1.2.3/test"
     );
 
     // no path
@@ -1456,7 +1466,7 @@ mod tests {
         sub_path: None
       }
     );
-    assert_eq!(package_nv_ref.as_specifier().as_str(), "npm:package@1.2.3");
+    assert_eq!(package_nv_ref.as_specifier().as_str(), "npm:/package@1.2.3");
   }
 
   #[test]
@@ -1555,7 +1565,7 @@ mod tests {
         .err()
         .unwrap()
         .to_string(),
-      "Not a valid package: @package"
+      "Invalid npm specifier 'npm:@package'. Did not contain a valid package name."
     );
 
     // should parse leading slash

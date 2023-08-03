@@ -3,18 +3,27 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
 pub mod npm;
+mod parsing;
 mod range;
+mod specifier;
+
+pub use self::specifier::VersionReqSpecifierParseError;
 
 pub use self::range::Partial;
 pub use self::range::VersionBoundKind;
 pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
 pub use self::range::XRange;
+
+/// Specifier that points to the wildcard version.
+pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
+  Lazy::new(|| VersionReq::parse_from_specifier("*").unwrap());
 
 #[derive(Error, Debug, Clone)]
 #[error("Invalid version. {source}")]
@@ -176,7 +185,7 @@ pub enum RangeSetOrTag {
   Tag(String),
 }
 
-/// A version requirement found in an npm package's dependencies.
+/// A version constraint.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VersionReq {
   raw_text: String,
@@ -194,8 +203,8 @@ impl VersionReq {
 
   pub fn parse_from_specifier(
     specifier: &str,
-  ) -> Result<Self, npm::NpmVersionReqSpecifierParseError> {
-    npm::specifier::parse_version_req_from_specifier(specifier)
+  ) -> Result<Self, VersionReqSpecifierParseError> {
+    specifier::parse_version_req_from_specifier(specifier)
   }
 
   pub fn parse_from_npm(
