@@ -9,6 +9,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 pub mod npm;
+pub mod package;
 mod range;
 mod specifier;
 
