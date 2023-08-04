@@ -59,15 +59,8 @@ pub struct PackageReqReference {
 }
 
 impl PackageReqReference {
-  pub fn from_specifier(
-    specifier: &Url,
-    kind: PackageKind,
-  ) -> Result<Self, PackageReqReferenceParseError> {
-    Self::from_str(specifier.as_str(), kind)
-  }
-
   #[allow(clippy::should_implement_trait)]
-  pub fn from_str(
+  pub(crate) fn from_str(
     specifier: &str,
     kind: PackageKind,
   ) -> Result<Self, PackageReqReferenceParseError> {
@@ -312,7 +305,7 @@ pub struct PackageNvReference {
 
 impl PackageNvReference {
   #[allow(clippy::should_implement_trait)]
-  pub fn from_str(
+  pub(crate) fn from_str(
     nv: &str,
     kind: PackageKind,
   ) -> Result<Self, PackageNvReferenceParseError> {
@@ -348,7 +341,7 @@ impl PackageNvReference {
     })
   }
 
-  pub fn as_specifier(&self, kind: PackageKind) -> Url {
+  pub(crate) fn as_specifier(&self, kind: PackageKind) -> Url {
     let version_text = self.nv.version.to_string();
     let scheme = kind.scheme();
     let capacity = scheme.len() + 2 /* colon slash */
