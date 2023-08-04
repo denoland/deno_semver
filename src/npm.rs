@@ -1,7 +1,5 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
-use std::cmp::Ordering;
-
 use monch::*;
 use thiserror::Error;
 
@@ -9,8 +7,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
 
-use crate::VersionReqSpecifierParseError;
-use crate::WILDCARD_VERSION_REQ;
+use crate::package::PackageKind;
+use crate::package::PackageNv;
+use crate::package::PackageNvReference;
+use crate::package::PackageNvReferenceParseError;
+use crate::package::PackageReq;
+use crate::package::PackageReqReference;
+use crate::package::PackageReqReferenceParseError;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -430,205 +433,98 @@ fn part(input: &str) -> ParseResult<&str> {
   )(input)
 }
 
-#[derive(Error, Debug, Clone)]
-pub enum NpmPackageReqReferenceParseError {
-  #[error("Not an npm specifier.")]
-  NotNpmSpecifier,
-  #[error("Invalid npm specifier '{specifier}'. {source:#}")]
-  Invalid {
-    specifier: String,
-    #[source]
-    source: NpmVersionReqPartsParseError,
-  },
-  #[error("Invalid package specifier 'npm:{current}'. Did you mean to write 'npm:{suggested}'?")]
-  InvalidPathWithVersion { current: String, suggested: String },
-}
-
 /// A reference to an npm package's name, version constraint, and potential sub path.
-///
 /// This contains all the information found in an npm specifier.
+///
+/// This wraps PackageReqReference in order to prevent accidentally
+/// mixing this with other schemes.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NpmPackageReqReference {
-  pub req: NpmPackageReq,
-  pub sub_path: Option<String>,
+pub struct NpmPackageReqReference(PackageReqReference);
+
+impl std::fmt::Display for NpmPackageReqReference {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "npm:{}", self.0)
+  }
 }
 
 impl NpmPackageReqReference {
+  pub fn new(inner: PackageReqReference) -> Self {
+    Self(inner)
+  }
+
   pub fn from_specifier(
     specifier: &Url,
-  ) -> Result<Self, NpmPackageReqReferenceParseError> {
+  ) -> Result<Self, PackageReqReferenceParseError> {
     Self::from_str(specifier.as_str())
   }
 
   #[allow(clippy::should_implement_trait)]
   pub fn from_str(
     specifier: &str,
-  ) -> Result<Self, NpmPackageReqReferenceParseError> {
-    let original_text = specifier;
-    let input = match specifier.strip_prefix("npm:") {
-      Some(input) => input,
-      None => {
-        // this is hit a lot when a url is not an npm specifier
-        // so ensure nothing heavy occurs before this
-        return Err(NpmPackageReqReferenceParseError::NotNpmSpecifier);
-      }
-    };
-    let (req, sub_path) = match NpmPackageReq::parse_with_path(input) {
-      Ok(pkg_req) => pkg_req,
-      Err(err) => {
-        return Err(NpmPackageReqReferenceParseError::Invalid {
-          specifier: original_text.to_string(),
-          source: err,
-        });
-      }
-    };
-    let sub_path = if sub_path.is_empty() || sub_path == "/" {
-      None
-    } else {
-      Some(sub_path.to_string())
-    };
+  ) -> Result<Self, PackageReqReferenceParseError> {
+    PackageReqReference::from_str(specifier, PackageKind::Npm).map(Self)
+  }
 
-    if let Some(sub_path) = &sub_path {
-      if let Some(at_index) = sub_path.rfind('@') {
-        let (new_sub_path, version) = sub_path.split_at(at_index);
-        return Err(NpmPackageReqReferenceParseError::InvalidPathWithVersion {
-          current: format!("{req}/{sub_path}"),
-          suggested: format!("{req}{version}/{new_sub_path}"),
-        });
-      }
-    }
+  pub fn req(&self) -> &PackageReq {
+    &self.0.req
+  }
 
-    Ok(Self { req, sub_path })
+  pub fn sub_path(&self) -> Option<&str> {
+    self.0.sub_path.as_deref()
+  }
+
+  pub fn into_inner(self) -> PackageReqReference {
+    self.0
   }
 }
 
-impl std::fmt::Display for NpmPackageReqReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    if let Some(sub_path) = &self.sub_path {
-      write!(f, "npm:{}/{}", self.req, sub_path)
-    } else {
-      write!(f, "npm:{}", self.req)
-    }
+/// An npm package name and version with a potential subpath.
+///
+/// This wraps PackageNvReference in order to prevent accidentally
+/// mixing this with other schemes.
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub struct NpmPackageNvReference(PackageNvReference);
+
+impl NpmPackageNvReference {
+  pub fn new(inner: PackageNvReference) -> Self {
+    Self(inner)
   }
-}
 
-#[derive(Error, Debug, Clone)]
-pub enum NpmVersionReqPartsParseError {
-  #[error("Did not contain a package name.")]
-  NoPackageName,
-  #[error("Did not contain a valid package name.")]
-  InvalidPackageName,
-  #[error("Invalid version requirement. {source:#}")]
-  VersionReq {
-    #[source]
-    source: VersionReqSpecifierParseError,
-  },
-}
-
-#[derive(Error, Debug, Clone)]
-#[error("Invalid npm package requirement '{text}'. {source:#}")]
-pub struct NpmPackageReqParseError {
-  pub text: String,
-  #[source]
-  pub source: NpmVersionReqPartsParseError,
-}
-
-/// The name and version constraint component of an `NpmPackageReqReference`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct NpmPackageReq {
-  pub name: String,
-  pub version_req: VersionReq,
-}
-
-impl std::fmt::Display for NpmPackageReq {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    if self.version_req.version_text() == "*" {
-      // do not write out the version requirement when it's the wildcard version
-      write!(f, "{}", self.name)
-    } else {
-      write!(f, "{}@{}", self.name, self.version_req)
-    }
+  pub fn from_specifier(
+    specifier: &Url,
+  ) -> Result<Self, PackageNvReferenceParseError> {
+    Self::from_str(specifier.as_str())
   }
-}
 
-impl NpmPackageReq {
   #[allow(clippy::should_implement_trait)]
-  pub fn from_str(text: &str) -> Result<Self, NpmPackageReqParseError> {
-    fn from_str_inner(
-      text: &str,
-    ) -> Result<NpmPackageReq, NpmVersionReqPartsParseError> {
-      let (req, path) = NpmPackageReq::parse_with_path(text)?;
-      if !path.is_empty() {
-        return Err(NpmVersionReqPartsParseError::VersionReq {
-          source: VersionReqSpecifierParseError {
-            source: ParseErrorFailure::new(
-              &text[text.len() - path.len() - 1..],
-              "Unexpected character '/'",
-            )
-            .into_error(),
-          },
-        });
-      }
-      Ok(req)
-    }
-
-    match from_str_inner(text) {
-      Ok(req) => Ok(req),
-      Err(err) => Err(NpmPackageReqParseError {
-        text: text.to_string(),
-        source: err,
-      }),
-    }
+  pub fn from_str(nv: &str) -> Result<Self, PackageNvReferenceParseError> {
+    PackageNvReference::from_str(nv, PackageKind::Npm).map(Self)
   }
 
-  fn parse_with_path(
-    input: &str,
-  ) -> Result<(Self, &str), NpmVersionReqPartsParseError> {
-    // Strip leading slash, which might come from import map
-    let input = input.strip_prefix('/').unwrap_or(input);
-    // parse the first name part
-    let (first_part, input) = input.split_once('/').unwrap_or((input, ""));
-    if first_part.is_empty() {
-      return Err(NpmVersionReqPartsParseError::NoPackageName);
-    }
-    // if it starts with an @, parse the second name part
-    let (maybe_scope, last_name_part, sub_path) = if first_part.starts_with('@')
-    {
-      let (second_part, input) = input.split_once('/').unwrap_or((input, ""));
-      if second_part.is_empty() {
-        return Err(NpmVersionReqPartsParseError::InvalidPackageName);
-      }
-      (Some(first_part), second_part, input)
-    } else {
-      (None, first_part, input)
-    };
+  pub fn as_specifier(&self) -> Url {
+    self.0.as_specifier(PackageKind::Npm)
+  }
 
-    let (last_name_part, version_req) = if let Some((last_name_part, version)) =
-      last_name_part.rsplit_once('@')
-    {
-      let version_req =
-        VersionReq::parse_from_specifier(version).map_err(|err| {
-          NpmVersionReqPartsParseError::VersionReq { source: err }
-        })?;
-      (last_name_part, Some(version_req))
-    } else {
-      (last_name_part, None)
-    };
-    Ok((
-      Self {
-        name: match maybe_scope {
-          Some(scope) => format!("{}/{}", scope, last_name_part),
-          None => last_name_part.to_string(),
-        },
-        version_req: version_req
-          .unwrap_or_else(|| WILDCARD_VERSION_REQ.clone()),
-      },
-      sub_path,
-    ))
+  pub fn nv(&self) -> &PackageNv {
+    &self.0.nv
+  }
+
+  pub fn sub_path(&self) -> Option<&str> {
+    self.0.sub_path.as_deref()
+  }
+
+  pub fn into_inner(self) -> PackageNvReference {
+    self.0
   }
 }
 
-impl Serialize for NpmPackageReq {
+impl std::fmt::Display for NpmPackageNvReference {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "npm:{}", self.0)
+  }
+}
+
+impl Serialize for NpmPackageNvReference {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: serde::Serializer,
@@ -637,7 +533,7 @@ impl Serialize for NpmPackageReq {
   }
 }
 
-impl<'de> Deserialize<'de> for NpmPackageReq {
+impl<'de> Deserialize<'de> for NpmPackageNvReference {
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: serde::Deserializer<'de>,
@@ -650,50 +546,12 @@ impl<'de> Deserialize<'de> for NpmPackageReq {
   }
 }
 
-impl PartialOrd for NpmPackageReq {
-  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    Some(self.cmp(other))
-  }
-}
-
-// Sort the package requirements alphabetically then the version
-// requirement in a way that will lead to the least number of
-// duplicate packages (so sort None last since it's `*`), but
-// mostly to create some determinism around how these are resolved.
-impl Ord for NpmPackageReq {
-  fn cmp(&self, other: &Self) -> Ordering {
-    fn cmp_specifier_version_req(a: &VersionReq, b: &VersionReq) -> Ordering {
-      match a.tag() {
-        Some(a_tag) => match b.tag() {
-          Some(b_tag) => b_tag.cmp(a_tag), // sort descending
-          None => Ordering::Less,          // prefer a since tag
-        },
-        None => {
-          match b.tag() {
-            Some(_) => Ordering::Greater, // prefer b since tag
-            None => {
-              // At this point, just sort by text descending.
-              // We could maybe be a bit smarter here in the future.
-              b.to_string().cmp(&a.to_string())
-            }
-          }
-        }
-      }
-    }
-
-    match self.name.cmp(&other.name) {
-      Ordering::Equal => {
-        cmp_specifier_version_req(&self.version_req, &other.version_req)
-      }
-      ordering => ordering,
-    }
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use pretty_assertions::assert_eq;
   use std::cmp::Ordering;
+
+  use crate::WILDCARD_VERSION_REQ;
 
   use super::*;
 
@@ -1271,91 +1129,91 @@ mod tests {
   fn parse_npm_package_req_ref() {
     assert_eq!(
       NpmPackageReqReference::from_str("npm:@package/test").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
-      }
+      }),
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:@package/test@1").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: VersionReq::parse_from_specifier("1").unwrap(),
         },
         sub_path: None,
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:@package/test@~1.1/sub_path")
         .unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
         sub_path: Some("sub_path".to_string()),
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:@package/test/sub_path").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:test").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:test@^1.2").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "test".to_string(),
           version_req: VersionReq::parse_from_specifier("^1.2").unwrap(),
         },
         sub_path: None,
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:test@~1.1/sub_path").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "test".to_string(),
           version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
         sub_path: Some("sub_path".to_string()),
-      }
+      })
     );
 
     assert_eq!(
       NpmPackageReqReference::from_str("npm:@package/test/sub_path").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
-      }
+      })
     );
 
     assert_eq!(
@@ -1363,39 +1221,39 @@ mod tests {
         .err()
         .unwrap()
         .to_string(),
-      "Invalid npm specifier 'npm:@package'. Did not contain a valid package name."
+      "Invalid package specifier 'npm:@package'. Did not contain a valid package name."
     );
 
     // should parse leading slash
     assert_eq!(
       NpmPackageReqReference::from_str("npm:/@package/test/sub_path").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "@package/test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: Some("sub_path".to_string()),
-      }
+      })
     );
     assert_eq!(
       NpmPackageReqReference::from_str("npm:/test").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
-      }
+      })
     );
     assert_eq!(
       NpmPackageReqReference::from_str("npm:/test/").unwrap(),
-      NpmPackageReqReference {
-        req: NpmPackageReq {
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
           name: "test".to_string(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
-      }
+      })
     );
 
     // should error for no name
@@ -1404,48 +1262,49 @@ mod tests {
         .err()
         .unwrap()
         .to_string(),
-      "Invalid npm specifier 'npm:/'. Did not contain a package name."
+      "Invalid package specifier 'npm:/'. Did not contain a package name."
     );
     assert_eq!(
       NpmPackageReqReference::from_str("npm://test")
         .err()
         .unwrap()
         .to_string(),
-      "Invalid npm specifier 'npm://test'. Did not contain a package name."
+      "Invalid package specifier 'npm://test'. Did not contain a package name."
     );
   }
 
   #[test]
-  fn serialize_deserialize_package_req() {
-    let package_req = NpmPackageReq::from_str("test@^1.0").unwrap();
-    let json = serde_json::to_string(&package_req).unwrap();
-    assert_eq!(json, "\"test@^1.0\"");
-    let result = serde_json::from_str::<NpmPackageReq>(&json).unwrap();
-    assert_eq!(result, package_req);
-  }
+  fn package_nv_ref() {
+    let package_nv_ref =
+      NpmPackageNvReference::from_str("npm:package@1.2.3/test").unwrap();
+    assert_eq!(
+      package_nv_ref,
+      NpmPackageNvReference(PackageNvReference {
+        nv: PackageNv {
+          name: "package".to_string(),
+          version: Version::parse_from_npm("1.2.3").unwrap(),
+        },
+        sub_path: Some("test".to_string())
+      })
+    );
+    assert_eq!(
+      package_nv_ref.as_specifier().as_str(),
+      "npm:/package@1.2.3/test"
+    );
 
-  #[test]
-  fn sorting_package_reqs() {
-    fn cmp_req(a: &str, b: &str) -> Ordering {
-      let a = NpmPackageReq::from_str(a).unwrap();
-      let b = NpmPackageReq::from_str(b).unwrap();
-      a.cmp(&b)
-    }
-
-    // sort by name
-    assert_eq!(cmp_req("a", "b@1"), Ordering::Less);
-    assert_eq!(cmp_req("b@1", "a"), Ordering::Greater);
-    // prefer non-wildcard
-    assert_eq!(cmp_req("a", "a@1"), Ordering::Greater);
-    assert_eq!(cmp_req("a@1", "a"), Ordering::Less);
-    // prefer tag
-    assert_eq!(cmp_req("a@tag", "a"), Ordering::Less);
-    assert_eq!(cmp_req("a", "a@tag"), Ordering::Greater);
-    // sort tag descending
-    assert_eq!(cmp_req("a@latest-v1", "a@latest-v2"), Ordering::Greater);
-    assert_eq!(cmp_req("a@latest-v2", "a@latest-v1"), Ordering::Less);
-    // sort version req descending
-    assert_eq!(cmp_req("a@1", "a@2"), Ordering::Greater);
-    assert_eq!(cmp_req("a@2", "a@1"), Ordering::Less);
+    // no path
+    let package_nv_ref =
+      NpmPackageNvReference::from_str("npm:package@1.2.3").unwrap();
+    assert_eq!(
+      package_nv_ref,
+      NpmPackageNvReference(PackageNvReference {
+        nv: PackageNv {
+          name: "package".to_string(),
+          version: Version::parse_from_npm("1.2.3").unwrap(),
+        },
+        sub_path: None
+      })
+    );
+    assert_eq!(package_nv_ref.as_specifier().as_str(), "npm:/package@1.2.3");
   }
 }
