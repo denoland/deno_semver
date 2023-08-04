@@ -13,39 +13,45 @@ use crate::WILDCARD_VERSION_REQ;
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum PackageKind {
+  Deno,
   Npm,
+  Workspace,
 }
 
 impl PackageKind {
-  pub fn scheme(self) -> &'static str {
-    match self {
-      Self::Npm => "npm",
-    }
-  }
-
   pub fn scheme_with_colon(self) -> &'static str {
     match self {
+      Self::Deno => "deno:",
       Self::Npm => "npm:",
+      Self::Workspace => "workspace:",
     }
   }
 }
 
 #[derive(Error, Debug, Clone)]
 pub enum PackageReqReferenceParseError {
-  #[error("Not {} specifier.", .0.scheme())]
+  #[error("Not {} specifier.", .0.scheme_with_colon())]
   NotExpectedScheme(PackageKind),
-  #[error("Invalid package specifier '{specifier}'. {source:#}")]
-  Invalid {
-    specifier: String,
-    #[source]
-    source: PackageReqPartsParseError,
-  },
-  #[error("Invalid package specifier '{0}:{1}'. Did you mean to write '{0}:{2}'?", .kind.scheme(), current, suggested)]
-  InvalidPathWithVersion {
-    kind: PackageKind,
-    current: String,
-    suggested: String,
-  },
+  #[error(transparent)]
+  Invalid(Box<PackageReqReferenceInvalidParseError>),
+  #[error(transparent)]
+  InvalidPathWithVersion(Box<PackageReqReferenceInvalidWithVersionParseError>),
+}
+
+#[derive(Error, Debug, Clone)]
+#[error("Invalid package specifier '{specifier}'. {source:#}")]
+pub struct PackageReqReferenceInvalidParseError {
+  specifier: String,
+  #[source]
+  source: PackageReqPartsParseError,
+}
+
+#[derive(Error, Debug, Clone)]
+#[error("Invalid package specifier '{0}{1}'. Did you mean to write '{0}{2}'?", .kind.scheme_with_colon(), current, suggested)]
+pub struct PackageReqReferenceInvalidWithVersionParseError {
+  kind: PackageKind,
+  current: String,
+  suggested: String,
 }
 
 /// A reference to a package's name, version constraint, and potential sub path.
@@ -76,10 +82,12 @@ impl PackageReqReference {
     let (req, sub_path) = match PackageReq::parse_with_path(input) {
       Ok(pkg_req) => pkg_req,
       Err(err) => {
-        return Err(PackageReqReferenceParseError::Invalid {
-          specifier: original_text.to_string(),
-          source: err,
-        });
+        return Err(PackageReqReferenceParseError::Invalid(Box::new(
+          PackageReqReferenceInvalidParseError {
+            specifier: original_text.to_string(),
+            source: err,
+          },
+        )));
       }
     };
     let sub_path = if sub_path.is_empty() || sub_path == "/" {
@@ -91,11 +99,13 @@ impl PackageReqReference {
     if let Some(sub_path) = &sub_path {
       if let Some(at_index) = sub_path.rfind('@') {
         let (new_sub_path, version) = sub_path.split_at(at_index);
-        return Err(PackageReqReferenceParseError::InvalidPathWithVersion {
-          kind,
-          current: format!("{req}/{sub_path}"),
-          suggested: format!("{req}{version}/{new_sub_path}"),
-        });
+        return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
+          Box::new(PackageReqReferenceInvalidWithVersionParseError {
+            kind,
+            current: format!("{req}/{sub_path}"),
+            suggested: format!("{req}{version}/{new_sub_path}"),
+          }),
+        ));
       }
     }
 
@@ -321,6 +331,7 @@ impl PackageNvReference {
     ) -> impl Fn(&'a str) -> ParseResult<'a, PackageNvReference> {
       move |input| {
         let (input, _) = tag(kind.scheme_with_colon())(input)?;
+        let (input, _) = maybe(ch('/'))(input)?;
         let (input, nv) = parse_nv(input)?;
         let (input, maybe_sub_path) = maybe(sub_path)(input)?;
         Ok((
@@ -343,15 +354,15 @@ impl PackageNvReference {
 
   pub(crate) fn as_specifier(&self, kind: PackageKind) -> Url {
     let version_text = self.nv.version.to_string();
-    let scheme = kind.scheme();
-    let capacity = scheme.len() + 2 /* colon slash */
+    let scheme_with_colon = kind.scheme_with_colon();
+    let capacity = scheme_with_colon.len() + 1 /* slash */
       + self.nv.name.len()
       + 1 /* @ */
       + version_text.len()
       + self.sub_path.as_ref().map(|p| p.len() + 1 /* slash */).unwrap_or(0);
     let mut text = String::with_capacity(capacity);
-    text.push_str(scheme);
-    text.push_str(":/");
+    text.push_str(scheme_with_colon);
+    text.push('/');
     text.push_str(&self.nv.name);
     text.push('@');
     text.push_str(&version_text);
