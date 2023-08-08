@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
+pub mod deno;
 pub mod npm;
 pub mod package;
 mod range;
