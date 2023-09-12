@@ -15,17 +15,15 @@ use crate::WILDCARD_VERSION_REQ;
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum PackageKind {
-  Deno,
+  Jsr,
   Npm,
-  Workspace,
 }
 
 impl PackageKind {
   pub fn scheme_with_colon(self) -> &'static str {
     match self {
-      Self::Deno => "deno:",
+      Self::Jsr => "jsr:",
       Self::Npm => "npm:",
-      Self::Workspace => "workspace:",
     }
   }
 }
