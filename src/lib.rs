@@ -214,8 +214,8 @@ impl VersionReq {
     npm::parse_npm_version_req(text)
   }
 
-  #[cfg(test)]
-  pub(crate) fn inner(&self) -> &RangeSetOrTag {
+  /// The underlying `RangeSetOrTag`.
+  pub fn inner(&self) -> &RangeSetOrTag {
     &self.inner
   }
 

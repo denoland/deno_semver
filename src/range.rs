@@ -94,7 +94,7 @@ impl RangeBound {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VersionBoundKind {
   Inclusive,
   Exclusive,
@@ -193,6 +193,80 @@ impl VersionRange {
     // clamp the start range to the end when greater
     let start = start.clamp_end(&end);
     VersionRange { start, end }
+  }
+
+  pub fn overlaps(&self, other_range: &VersionRange) -> bool {
+    fn is_less_than_or_equal(a: &VersionBound, b: &VersionBound) -> bool {
+      // note: we've picked the bounds "exclusive 3.0.0" and "inclusive 3.0.0" to always
+      // return false for the purposes of this function and that's why this is internal
+      // code. Due to this scenario, I don't believe it would make sense to move this
+      // to a PartialOrd or Ord impl
+      match a.kind {
+        VersionBoundKind::Inclusive => match b.kind {
+          VersionBoundKind::Inclusive => {
+            matches!(
+              a.version.cmp(&b.version),
+              Ordering::Less | Ordering::Equal
+            )
+          }
+          VersionBoundKind::Exclusive => match a.version.cmp(&b.version) {
+            Ordering::Equal => false,
+            ordering => matches!(ordering, Ordering::Less | Ordering::Equal),
+          },
+        },
+        VersionBoundKind::Exclusive => match b.kind {
+          VersionBoundKind::Inclusive => match a.version.cmp(&b.version) {
+            Ordering::Equal => false,
+            ordering => matches!(ordering, Ordering::Less | Ordering::Equal),
+          },
+          VersionBoundKind::Exclusive => match a.version.cmp(&b.version) {
+            Ordering::Equal => false,
+            ordering => matches!(ordering, Ordering::Less | Ordering::Equal),
+          },
+        },
+      }
+    }
+
+    use RangeBound::*;
+
+    match (&self.start, &self.end, &other_range.start, &other_range.end) {
+      // either range is entirely unbounded
+      (Unbounded, Unbounded, _, _) | (_, _, Unbounded, Unbounded) => true,
+      // first range is unbounded on the left
+      (Unbounded, Version(self_end), Version(range_start), _) => {
+        is_less_than_or_equal(range_start, self_end)
+      }
+      // first range is unbounded on the right
+      (Version(self_start), Unbounded, _, Version(range_end)) => {
+        is_less_than_or_equal(self_start, range_end)
+      }
+      // second range is unbounded on the left
+      (Version(self_start), _, Unbounded, Version(range_end)) => {
+        is_less_than_or_equal(self_start, range_end)
+      }
+      // second range is unbounded on the right
+      (_, Version(self_end), Version(range_start), Unbounded) => {
+        is_less_than_or_equal(range_start, self_end)
+      }
+      // both versions are unbounded on the left
+      (Unbounded, Version(self_end), Unbounded, Version(range_end)) => {
+        is_less_than_or_equal(range_end, self_end)
+      }
+      // both versions are unbounded on the right
+      (Version(self_start), Unbounded, Version(range_start), Unbounded) => {
+        is_less_than_or_equal(self_start, range_start)
+      }
+      // Compare exact VersionBounds for both ranges
+      (
+        Version(self_start),
+        Version(self_end),
+        Version(range_start),
+        Version(range_end),
+      ) => {
+        is_less_than_or_equal(self_start, range_end)
+          && is_less_than_or_equal(range_start, self_end)
+      }
+    }
   }
 }
 
@@ -505,5 +579,67 @@ impl Partial {
       start: RangeBound::version(start_kind, start),
       end: RangeBound::version(end_kind, end),
     }
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn test_version_range_overlaps() {
+    let range_1_incl_2_incl = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
+      end: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
+    };
+
+    let range_1_incl_3_excl = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
+      end: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
+    };
+
+    let range_2_incl_3_incl = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
+      end: version_bound(VersionBoundKind::Inclusive, "3.0.0"),
+    };
+
+    let range_3_incl_unbounded = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "3.0.0"),
+      end: RangeBound::Unbounded,
+    };
+
+    let range_unbounded_2_excl = VersionRange {
+      start: RangeBound::Unbounded,
+      end: version_bound(VersionBoundKind::Exclusive, "2.0.0"),
+    };
+
+    let range_2_excl_3_excl = VersionRange {
+      start: version_bound(VersionBoundKind::Exclusive, "2.0.0"),
+      end: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
+    };
+
+    let range_3_excl_4_incl = VersionRange {
+      start: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
+      end: version_bound(VersionBoundKind::Inclusive, "4.0.0"),
+    };
+
+    // overlapping cases
+    assert!(range_1_incl_2_incl.overlaps(&range_1_incl_3_excl));
+    assert!(range_1_incl_3_excl.overlaps(&range_2_incl_3_incl));
+    assert!(range_3_incl_unbounded.overlaps(&range_2_incl_3_incl));
+    assert!(range_1_incl_2_incl.overlaps(&range_unbounded_2_excl));
+
+    // non-overlapping cases
+    assert!(!range_1_incl_2_incl.overlaps(&range_3_incl_unbounded));
+    assert!(!range_unbounded_2_excl.overlaps(&range_2_incl_3_incl));
+    assert!(!range_unbounded_2_excl.overlaps(&range_3_incl_unbounded));
+    assert!(!range_2_excl_3_excl.overlaps(&range_3_excl_4_incl));
+  }
+
+  fn version_bound(kind: VersionBoundKind, ver: &str) -> RangeBound {
+    RangeBound::Version(VersionBound {
+      kind,
+      version: Version::parse_standard(ver).unwrap(),
+    })
   }
 }
