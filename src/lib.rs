@@ -186,6 +186,19 @@ pub enum RangeSetOrTag {
   Tag(String),
 }
 
+impl RangeSetOrTag {
+  pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
+    match (self, other) {
+      (RangeSetOrTag::RangeSet(a), RangeSetOrTag::RangeSet(b)) => {
+        a.intersects_set(b)
+      }
+      (RangeSetOrTag::RangeSet(_), RangeSetOrTag::Tag(_))
+      | (RangeSetOrTag::Tag(_), RangeSetOrTag::RangeSet(_)) => false,
+      (RangeSetOrTag::Tag(a), RangeSetOrTag::Tag(b)) => a == b,
+    }
+  }
+}
+
 /// A version constraint.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VersionReq {
@@ -214,9 +227,14 @@ impl VersionReq {
     npm::parse_npm_version_req(text)
   }
 
-  #[cfg(test)]
-  pub(crate) fn inner(&self) -> &RangeSetOrTag {
+  /// The underlying `RangeSetOrTag`.
+  pub fn inner(&self) -> &RangeSetOrTag {
     &self.inner
+  }
+
+  /// Gets if this version requirement overlaps another one.
+  pub fn intersects(&self, other: &VersionReq) -> bool {
+    self.inner.intersects(&other.inner)
   }
 
   pub fn tag(&self) -> Option<&str> {
@@ -249,7 +267,7 @@ impl fmt::Display for VersionReq {
 
 #[cfg(test)]
 mod test {
-  use crate::Version;
+  use super::*;
 
   #[test]
   fn serialize_deserialize() {
@@ -259,5 +277,60 @@ mod test {
       serde_json::from_str(&format!("\"{text}\"")).unwrap();
     let serialized_version = serde_json::to_string(&version).unwrap();
     assert_eq!(serialized_version, "\"1.2.3-pre.other+build.test\"");
+  }
+
+  #[test]
+  fn version_req_intersects() {
+    let version = |text: &str| VersionReq::parse_from_npm(text).unwrap();
+
+    // overlapping requirements
+    {
+      let req_1_0_0 = version("1.0.0");
+      let req_caret_1 = version("^1");
+      assert!(req_1_0_0.intersects(&req_caret_1)); // Both represent the 1.0.0 version.
+    }
+    {
+      let req_1_to_3 = version(">=1 <=3");
+      let req_2_to_4 = version(">=2 <=4");
+      assert!(req_1_to_3.intersects(&req_2_to_4)); // They overlap in the 2.0.0 - 3.0.0 range.
+    }
+
+    // non-overlapping requirements
+    {
+      let req_lt_1 = version("<1");
+      let req_gte_1 = version(">=1");
+      assert!(!req_lt_1.intersects(&req_gte_1)); // One is less than 1.0.0, the other is 1.0.0 or greater.
+    }
+    {
+      let req_2_to_3 = version(">=2 <3");
+      let req_gte_3 = version(">=3");
+      assert!(!req_2_to_3.intersects(&req_gte_3)); // Non-overlapping.
+    }
+    {
+      let req_1_incl_2_excl = version("^1");
+      let req_2_incl_unbounded = version(">=2");
+      assert!(!req_1_incl_2_excl.intersects(&req_2_incl_unbounded));
+    }
+
+    // more specific requirements
+    {
+      let req_1_2_3 = version("1.2.3");
+      let req_1_2_x = version("1.2.x");
+      assert!(req_1_2_3.intersects(&req_1_2_x)); // both represent the 1.2.3 version.
+    }
+    {
+      let req_tilde_1_2_3 = version("~1.2.3");
+      let req_1_4_0 = version("1.4.0");
+      assert!(!req_tilde_1_2_3.intersects(&req_1_4_0)); // no overlap with 1.4.0.
+    }
+
+    // wildcards
+    {
+      let req_star = version("*");
+      let req_1_0_0 = version("1.0.0");
+      let req_gte_1 = version(">=1");
+      assert!(req_star.intersects(&req_1_0_0)); // the '*' allows any version.
+      assert!(req_star.intersects(&req_gte_1)); // again, '*' allows any version.
+    }
   }
 }
