@@ -15,6 +15,14 @@ impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
     self.0.iter().any(|r| r.satisfies(version))
   }
+
+  /// Gets if this set overlaps the other set.
+  pub fn intersects_set(&self, other: &VersionRangeSet) -> bool {
+    self
+      .0
+      .iter()
+      .any(|a| other.0.iter().any(|b| a.intersects_range(b)))
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -195,7 +203,34 @@ impl VersionRange {
     VersionRange { start, end }
   }
 
-  pub fn overlaps(&self, other_range: &VersionRange) -> bool {
+  /// Gets if this range overlaps the provided version.
+  pub fn intersects_version(&self, other_version: &Version) -> bool {
+    match &self.start {
+      RangeBound::Unbounded => match &self.end {
+        RangeBound::Unbounded => true,
+        RangeBound::Version(end) => match other_version.cmp(&end.version) {
+          Ordering::Less => true,
+          Ordering::Equal => end.kind == VersionBoundKind::Inclusive,
+          Ordering::Greater => false,
+        },
+      },
+      RangeBound::Version(start) => match other_version.cmp(&start.version) {
+        Ordering::Less => false,
+        Ordering::Equal => start.kind == VersionBoundKind::Inclusive,
+        Ordering::Greater => match &self.end {
+          RangeBound::Unbounded => true,
+          RangeBound::Version(end) => match other_version.cmp(&end.version) {
+            Ordering::Less => true,
+            Ordering::Equal => end.kind == VersionBoundKind::Inclusive,
+            Ordering::Greater => false,
+          },
+        },
+      },
+    }
+  }
+
+  /// Gets if this range overlaps the provided range at any point.
+  pub fn intersects_range(&self, other_range: &VersionRange) -> bool {
     fn is_less_than_or_equal(a: &VersionBound, b: &VersionBound) -> bool {
       // note: we've picked the bounds "exclusive 3.0.0" and "inclusive 3.0.0" to always
       // return false for the purposes of this function and that's why this is internal
@@ -587,53 +622,85 @@ mod test {
   use super::*;
 
   #[test]
-  fn test_version_range_overlaps() {
+  fn test_version_range_intersects_version() {
+    let v1 = Version::parse_standard("1.0.0").unwrap();
+    let v1_5 = Version::parse_standard("1.5.0").unwrap();
+    let v2 = Version::parse_standard("2.0.0").unwrap();
+    let v3 = Version::parse_standard("3.0.0").unwrap();
+    let v0_5 = Version::parse_standard("0.5.0").unwrap();
     let range_1_incl_2_incl = VersionRange {
       start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
       end: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
     };
+    let range_1_incl_2_excl = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
+      end: version_bound(VersionBoundKind::Exclusive, "2.0.0"),
+    };
+    let range_1_excl_2_incl = VersionRange {
+      start: version_bound(VersionBoundKind::Exclusive, "1.0.0"),
+      end: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
+    };
+    let range_unbounded_2_incl = VersionRange {
+      start: RangeBound::Unbounded,
+      end: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
+    };
+    let range_1_incl_unbounded = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
+      end: RangeBound::Unbounded,
+    };
 
+    assert!(range_1_incl_2_incl.intersects_version(&v1));
+    assert!(range_1_incl_2_incl.intersects_version(&v2));
+    assert!(range_1_incl_2_excl.intersects_version(&v1_5));
+    assert!(!range_1_incl_2_excl.intersects_version(&v2));
+    assert!(!range_1_excl_2_incl.intersects_version(&v1));
+    assert!(range_unbounded_2_incl.intersects_version(&v0_5));
+    assert!(range_1_incl_unbounded.intersects_version(&v1));
+    assert!(range_1_incl_unbounded.intersects_version(&v3));
+  }
+
+  #[test]
+  fn test_version_range_intersects_range() {
+    let range_1_incl_2_incl = VersionRange {
+      start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
+      end: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
+    };
     let range_1_incl_3_excl = VersionRange {
       start: version_bound(VersionBoundKind::Inclusive, "1.0.0"),
       end: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
     };
-
     let range_2_incl_3_incl = VersionRange {
       start: version_bound(VersionBoundKind::Inclusive, "2.0.0"),
       end: version_bound(VersionBoundKind::Inclusive, "3.0.0"),
     };
-
     let range_3_incl_unbounded = VersionRange {
       start: version_bound(VersionBoundKind::Inclusive, "3.0.0"),
       end: RangeBound::Unbounded,
     };
-
     let range_unbounded_2_excl = VersionRange {
       start: RangeBound::Unbounded,
       end: version_bound(VersionBoundKind::Exclusive, "2.0.0"),
     };
-
     let range_2_excl_3_excl = VersionRange {
       start: version_bound(VersionBoundKind::Exclusive, "2.0.0"),
       end: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
     };
-
     let range_3_excl_4_incl = VersionRange {
       start: version_bound(VersionBoundKind::Exclusive, "3.0.0"),
       end: version_bound(VersionBoundKind::Inclusive, "4.0.0"),
     };
 
     // overlapping cases
-    assert!(range_1_incl_2_incl.overlaps(&range_1_incl_3_excl));
-    assert!(range_1_incl_3_excl.overlaps(&range_2_incl_3_incl));
-    assert!(range_3_incl_unbounded.overlaps(&range_2_incl_3_incl));
-    assert!(range_1_incl_2_incl.overlaps(&range_unbounded_2_excl));
+    assert!(range_1_incl_2_incl.intersects_range(&range_1_incl_3_excl));
+    assert!(range_1_incl_3_excl.intersects_range(&range_2_incl_3_incl));
+    assert!(range_3_incl_unbounded.intersects_range(&range_2_incl_3_incl));
+    assert!(range_1_incl_2_incl.intersects_range(&range_unbounded_2_excl));
 
     // non-overlapping cases
-    assert!(!range_1_incl_2_incl.overlaps(&range_3_incl_unbounded));
-    assert!(!range_unbounded_2_excl.overlaps(&range_2_incl_3_incl));
-    assert!(!range_unbounded_2_excl.overlaps(&range_3_incl_unbounded));
-    assert!(!range_2_excl_3_excl.overlaps(&range_3_excl_4_incl));
+    assert!(!range_1_incl_2_incl.intersects_range(&range_3_incl_unbounded));
+    assert!(!range_unbounded_2_excl.intersects_range(&range_2_incl_3_incl));
+    assert!(!range_unbounded_2_excl.intersects_range(&range_3_incl_unbounded));
+    assert!(!range_2_excl_3_excl.intersects_range(&range_3_excl_4_incl));
   }
 
   fn version_bound(kind: VersionBoundKind, ver: &str) -> RangeBound {
