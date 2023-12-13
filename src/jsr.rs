@@ -17,7 +17,7 @@ use crate::package::PackageReqReferenceParseError;
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct JsrPackageReqReference(PackageReqReference);
 
 impl std::fmt::Display for JsrPackageReqReference {

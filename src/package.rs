@@ -58,7 +58,7 @@ pub struct PackageReqReferenceInvalidWithVersionParseError {
 ///
 /// This contains all the information found in a package specifier other than
 /// what kind of package specifier it was.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PackageReqReference {
   pub req: PackageReq,
   pub sub_path: Option<String>,

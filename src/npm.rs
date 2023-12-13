@@ -438,7 +438,7 @@ fn part(input: &str) -> ParseResult<&str> {
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NpmPackageReqReference(PackageReqReference);
 
 impl std::fmt::Display for NpmPackageReqReference {
