@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::fmt;
+use std::hash::Hash;
 
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -200,10 +201,24 @@ impl RangeSetOrTag {
 }
 
 /// A version constraint.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionReq {
   raw_text: String,
   inner: RangeSetOrTag,
+}
+
+impl PartialEq for VersionReq {
+  fn eq(&self, other: &Self) -> bool {
+    self.inner == other.inner
+  }
+}
+
+impl Eq for VersionReq {}
+
+impl Hash for VersionReq {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.inner.hash(state);
+  }
 }
 
 impl VersionReq {
@@ -332,5 +347,12 @@ mod test {
       assert!(req_star.intersects(&req_1_0_0)); // the '*' allows any version.
       assert!(req_star.intersects(&req_gte_1)); // again, '*' allows any version.
     }
+  }
+
+  #[test]
+  fn version_req_eq() {
+    let p1 = VersionReq::parse_from_specifier("1").unwrap();
+    let p2 = VersionReq::parse_from_specifier("1.x").unwrap();
+    assert_eq!(p1, p2);
   }
 }
