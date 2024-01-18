@@ -42,6 +42,12 @@ pub struct NpmVersionParseError {
   pub(crate) source: ParseErrorFailureError,
 }
 
+impl NpmVersionParseError {
+  pub fn message(&self) -> &str {
+    &self.source.message
+  }
+}
+
 pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
   let text = text.trim();
   with_failure_handling(|input| {
