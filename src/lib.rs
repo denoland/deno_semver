@@ -201,24 +201,10 @@ impl RangeSetOrTag {
 }
 
 /// A version constraint.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VersionReq {
   raw_text: String,
   inner: RangeSetOrTag,
-}
-
-impl PartialEq for VersionReq {
-  fn eq(&self, other: &Self) -> bool {
-    self.inner == other.inner
-  }
-}
-
-impl Eq for VersionReq {}
-
-impl Hash for VersionReq {
-  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-    self.inner.hash(state);
-  }
 }
 
 impl VersionReq {
@@ -242,9 +228,15 @@ impl VersionReq {
     npm::parse_npm_version_req(text)
   }
 
-  /// The underlying `RangeSetOrTag`.
+  /// The underlying `RangeSetOrTag` which doesn't include the raw text.
   pub fn inner(&self) -> &RangeSetOrTag {
     &self.inner
+  }
+
+  /// Converts the `VersionReq` into the underlying `RangeSetOrTag`
+  /// which doesn't include the raw text.
+  pub fn into_inner(self) -> RangeSetOrTag {
+    self.inner
   }
 
   /// Gets if this version requirement overlaps another one.
@@ -353,6 +345,8 @@ mod test {
   fn version_req_eq() {
     let p1 = VersionReq::parse_from_specifier("1").unwrap();
     let p2 = VersionReq::parse_from_specifier("1.x").unwrap();
-    assert_eq!(p1, p2);
+    // the inner RangeSetOrTag is equal, but not the underlying raw text
+    assert_ne!(p1, p2);
+    assert_eq!(p1.inner(), p2.inner());
   }
 }
