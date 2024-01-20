@@ -43,6 +43,7 @@ pub struct NpmVersionParseError {
 }
 
 impl NpmVersionParseError {
+  /// Message of the error excluding the code snippet.
   pub fn message(&self) -> &str {
     &self.source.message
   }
