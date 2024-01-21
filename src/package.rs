@@ -299,35 +299,6 @@ impl Ord for PackageReq {
   }
 }
 
-/// A package constraint with the kind of package.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct JsrOrNpmPackageReq {
-  pub kind: PackageKind,
-  pub req: PackageReq,
-}
-
-impl std::fmt::Display for JsrOrNpmPackageReq {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}{}", self.kind.scheme_with_colon(), self.req)
-  }
-}
-
-impl JsrOrNpmPackageReq {
-  pub fn jsr(req: PackageReq) -> Self {
-    Self {
-      kind: PackageKind::Jsr,
-      req,
-    }
-  }
-
-  pub fn npm(req: PackageReq) -> Self {
-    Self {
-      kind: PackageKind::Npm,
-      req,
-    }
-  }
-}
-
 #[derive(Debug, Error, Clone)]
 #[error("Invalid package name and version reference '{text}'. {message}")]
 pub struct PackageNvReferenceParseError {
@@ -521,7 +492,6 @@ fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
 mod test {
   use std::cmp::Ordering;
 
-  use crate::package::JsrOrNpmPackageReq;
   use crate::package::PackageReq;
 
   #[test]
@@ -556,17 +526,5 @@ mod test {
     // sort version req descending
     assert_eq!(cmp_req("a@1", "a@2"), Ordering::Greater);
     assert_eq!(cmp_req("a@2", "a@1"), Ordering::Less);
-  }
-
-  #[test]
-  fn jsr_or_npm_package_req_display() {
-    assert_eq!(
-      JsrOrNpmPackageReq::jsr(PackageReq::from_str("b@1").unwrap()).to_string(),
-      "jsr:b@1"
-    );
-    assert_eq!(
-      JsrOrNpmPackageReq::npm(PackageReq::from_str("c@1").unwrap()).to_string(),
-      "npm:c@1"
-    );
   }
 }
