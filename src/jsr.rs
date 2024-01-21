@@ -125,6 +125,35 @@ impl<'de> Deserialize<'de> for JsrPackageNvReference {
   }
 }
 
+/// A package constraint for a JSR dependency which could be from npm or JSR.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct JsrDepPackageReq {
+  pub kind: PackageKind,
+  pub req: PackageReq,
+}
+
+impl std::fmt::Display for JsrDepPackageReq {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}{}", self.kind.scheme_with_colon(), self.req)
+  }
+}
+
+impl JsrDepPackageReq {
+  pub fn jsr(req: PackageReq) -> Self {
+    Self {
+      kind: PackageKind::Jsr,
+      req,
+    }
+  }
+
+  pub fn npm(req: PackageReq) -> Self {
+    Self {
+      kind: PackageKind::Npm,
+      req,
+    }
+  }
+}
+
 #[cfg(test)]
 mod test {
   use super::*;
@@ -188,5 +217,17 @@ mod test {
         "jsr:/@scope/foo@1.0.0/mod.ts"
       );
     }
+  }
+
+  #[test]
+  fn jsr_dep_package_req_display() {
+    assert_eq!(
+      JsrDepPackageReq::jsr(PackageReq::from_str("b@1").unwrap()).to_string(),
+      "jsr:b@1"
+    );
+    assert_eq!(
+      JsrDepPackageReq::npm(PackageReq::from_str("c@1").unwrap()).to_string(),
+      "npm:c@1"
+    );
   }
 }
