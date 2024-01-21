@@ -300,7 +300,7 @@ impl Ord for PackageReq {
 }
 
 /// A package constraint with the kind of package.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct JsrOrNpmPackageReq {
   pub kind: PackageKind,
   pub req: PackageReq,
