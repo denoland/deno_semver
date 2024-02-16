@@ -262,10 +262,7 @@ impl VersionReq {
   pub fn matches(&self, version: &Version) -> bool {
     match &self.inner {
       RangeSetOrTag::RangeSet(range_set) => range_set.satisfies(version),
-      RangeSetOrTag::Tag(_) => panic!(
-        "programming error: cannot use matches with a tag: {}",
-        self.raw_text
-      ),
+      RangeSetOrTag::Tag(_) => false,
     }
   }
 
@@ -354,5 +351,18 @@ mod test {
     let p1 = VersionReq::parse_from_specifier("1").unwrap();
     let p2 = VersionReq::parse_from_specifier("1.x").unwrap();
     assert_eq!(p1, p2);
+  }
+
+  #[test]
+  fn tag_match_version() {
+    let p1 = VersionReq::parse_from_specifier("next").unwrap();
+    println!("{}", p1);
+    assert!(!p1.matches(&crate::Version {
+      major: 0,
+      minor: 0,
+      patch: 0,
+      pre: vec![],
+      build: vec![],
+    }));
   }
 }

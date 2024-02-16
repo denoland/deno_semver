@@ -187,6 +187,23 @@ mod test {
   }
 
   #[test]
+  fn jsr_tag_match() {
+    {
+      let req_ref = JsrPackageReqReference::from_specifier(
+        &Url::parse("jsr:@foo/bar@next").unwrap(),
+      )
+      .unwrap();
+      assert!(!req_ref.req().version_req.matches(&crate::Version {
+        major: 0,
+        minor: 0,
+        patch: 0,
+        pre: vec![],
+        build: vec![],
+      }));
+    }
+  }
+
+  #[test]
   fn jsr_nv_ref() {
     {
       let nv_ref = JsrPackageNvReference::from_specifier(
