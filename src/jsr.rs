@@ -49,7 +49,7 @@ impl JsrPackageReqReference {
   pub fn from_str(
     specifier: &str,
   ) -> Result<Self, PackageReqReferenceParseError> {
-    PackageReqReference::from_str(specifier, PackageKind::Jsr).map(Self)
+    Self::try_from(specifier)
   }
 
   pub fn req(&self) -> &PackageReq {
