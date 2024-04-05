@@ -454,6 +454,14 @@ impl std::fmt::Display for NpmPackageReqReference {
   }
 }
 
+impl TryFrom<&str> for NpmPackageReqReference {
+  type Error = PackageReqReferenceParseError;
+
+  fn try_from(value: &str) -> Result<Self, Self::Error> {
+    PackageReqReference::from_str(value, PackageKind::Npm).map(Self)
+  }
+}
+
 impl NpmPackageReqReference {
   pub fn new(inner: PackageReqReference) -> Self {
     Self(inner)

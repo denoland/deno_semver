@@ -26,6 +26,14 @@ impl std::fmt::Display for JsrPackageReqReference {
   }
 }
 
+impl TryFrom<&str> for JsrPackageReqReference {
+  type Error = PackageReqReferenceParseError;
+
+  fn try_from(value: &str) -> Result<Self, Self::Error> {
+    PackageReqReference::from_str(value, PackageKind::Jsr).map(Self)
+  }
+}
+
 impl JsrPackageReqReference {
   pub fn new(inner: PackageReqReference) -> Self {
     Self(inner)
