@@ -290,7 +290,13 @@ fn simple(input: &str) -> ParseResult<VersionRange> {
 
 fn tilde(input: &str) -> ParseResult<()> {
   fn raw_tilde(input: &str) -> ParseResult<()> {
-    map(pair(or(tag("~>"), tag("~")), skip_whitespace_or_v), |_| ())(input)
+    map(
+      pair(
+        terminated(or(tag("~>"), tag("~")), skip_while(|c| c == '=')),
+        skip_whitespace_or_v,
+      ),
+      |_| (),
+    )(input)
   }
 
   or(
@@ -301,7 +307,13 @@ fn tilde(input: &str) -> ParseResult<()> {
 
 fn caret(input: &str) -> ParseResult<()> {
   fn raw_caret(input: &str) -> ParseResult<()> {
-    map(pair(ch('^'), skip_whitespace_or_v), |_| ())(input)
+    map(
+      pair(
+        terminated(tag("^"), skip_while(|c| c == '=')),
+        skip_whitespace_or_v,
+      ),
+      |_| (),
+    )(input)
   }
 
   or(
@@ -804,6 +816,8 @@ mod tests {
       ("~> 1", ">=1.0.0 <2.0.0-0"),
       ("~1.0", ">=1.0.0 <1.1.0-0"),
       ("~ 1.0", ">=1.0.0 <1.1.0-0"),
+      ("~=1.0", ">=1.0.0 <1.1.0-0"),
+      ("~==1.0", ">=1.0.0 <1.1.0-0"),
       ("^0", "<1.0.0-0"),
       ("^ 1", ">=1.0.0 <2.0.0-0"),
       ("^0.1", ">=0.1.0 <0.2.0-0"),
@@ -814,6 +828,8 @@ mod tests {
       ("^0.1.2", ">=0.1.2 <0.2.0-0"),
       ("^1.2.3", ">=1.2.3 <2.0.0-0"),
       ("^1.2.3-beta.4", ">=1.2.3-beta.4 <2.0.0-0"),
+      ("^=1.0.0", ">=1.0.0 <2.0.0-0"),
+      ("^==1.0.0", ">=1.0.0 <2.0.0-0"),
       ("<1", "<1.0.0-0"),
       ("< 1", "<1.0.0-0"),
       (">=1", ">=1.0.0"),
