@@ -82,7 +82,7 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
 #[error("Invalid npm version requirement. {source}")]
 pub struct NpmVersionReqParseError {
   #[source]
-  source: ParseErrorFailureError,
+  pub source: ParseErrorFailureError,
 }
 
 pub fn parse_npm_version_req(
