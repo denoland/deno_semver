@@ -330,12 +330,17 @@ impl Partial {
       XRange::Val(major) => match self.minor {
         XRange::Wildcard => Version {
           major: major + 1,
-          ..Default::default()
+          minor: 0,
+          patch: 0,
+          pre: Vec::new(),
+          build: Vec::new(),
         },
         XRange::Val(minor) => Version {
           major,
           minor: minor + 1,
-          ..Default::default()
+          patch: 0,
+          pre: Vec::new(),
+          build: Vec::new(),
         },
       },
     };
