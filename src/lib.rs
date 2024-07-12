@@ -259,9 +259,20 @@ impl VersionReq {
     }
   }
 
+  pub fn range(&self) -> Option<&VersionRangeSet> {
+    match &self.inner {
+      RangeSetOrTag::RangeSet(range_set) => Some(range_set),
+      RangeSetOrTag::Tag(_) => None,
+    }
+  }
+
+  #[deprecated(note = "check for range first, then use satisfies")]
   pub fn matches(&self, version: &Version) -> bool {
     match &self.inner {
       RangeSetOrTag::RangeSet(range_set) => range_set.satisfies(version),
+      // It's not safe to use `.matches()` with a VersionReq because the tag
+      // might not be resolved yet. We might want to create a `ResolvedVersionReq`
+      // that has the tag resolved or think of something better here
       RangeSetOrTag::Tag(_) => panic!(
         "programming error: cannot use matches with a tag: {}",
         self.raw_text
