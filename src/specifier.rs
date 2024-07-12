@@ -262,6 +262,20 @@ mod tests {
   }
 
   #[test]
+  fn version_req_pre_release() {
+    let tester = VersionReqTester::new("^1.0.1-pre-release");
+    assert!(!tester.matches("1.0.0"));
+    assert!(tester.matches("1.0.1"));
+    assert!(tester.matches("1.0.1-pre-release"));
+
+    // zero version
+    let tester = VersionReqTester::new("^0.0.0-pre-release");
+    assert!(tester.matches("0.0.0"));
+    assert!(!tester.matches("0.0.1"));
+    assert!(tester.matches("0.0.0-pre-release"));
+  }
+
+  #[test]
   fn parses_tag() {
     let latest_tag = VersionReq::parse_from_specifier("latest").unwrap();
     assert_eq!(latest_tag.tag().unwrap(), "latest");
