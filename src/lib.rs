@@ -1,5 +1,8 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+#![deny(clippy::print_stderr)]
+#![deny(clippy::print_stdout)]
+
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
@@ -259,6 +262,13 @@ impl VersionReq {
     }
   }
 
+  pub fn range(&self) -> Option<&VersionRangeSet> {
+    match &self.inner {
+      RangeSetOrTag::RangeSet(range_set) => Some(range_set),
+      RangeSetOrTag::Tag(_) => None,
+    }
+  }
+
   pub fn matches(&self, version: &Version) -> bool {
     match &self.inner {
       RangeSetOrTag::RangeSet(range_set) => range_set.satisfies(version),
@@ -354,5 +364,19 @@ mod test {
     let p1 = VersionReq::parse_from_specifier("1").unwrap();
     let p2 = VersionReq::parse_from_specifier("1.x").unwrap();
     assert_eq!(p1, p2);
+  }
+
+  #[test]
+  fn version_cmp() {
+    fn cmp(v1: &str, v2: &str) -> Ordering {
+      let v1 = Version::parse_standard(v1).unwrap();
+      let v2 = Version::parse_standard(v2).unwrap();
+      v1.cmp(&v2)
+    }
+
+    assert_eq!(cmp("1.0.0", "1.0.0-pre"), Ordering::Greater);
+    assert_eq!(cmp("0.0.0", "0.0.0-pre"), Ordering::Greater);
+    assert_eq!(cmp("0.0.0-a", "0.0.0-b"), Ordering::Less);
+    assert_eq!(cmp("0.0.0-a", "0.0.0-a"), Ordering::Equal);
   }
 }

@@ -637,6 +637,20 @@ mod tests {
     assert_eq!(req.tag(), Some("latest"));
   }
 
+  #[test]
+  pub fn npm_version_req_prerelease() {
+    let tester = NpmVersionReqTester::new("^1.0.0-beta-7");
+    assert!(tester.matches("1.0.0-beta-7"));
+    let tester = NpmVersionReqTester::new("^0.0.1-beta-7");
+    assert!(tester.matches("0.0.1-beta-7"));
+  }
+
+  #[test]
+  pub fn npm_version_req_0_version() {
+    let tester = NpmVersionReqTester::new("^0.0.0-beta-7");
+    assert!(tester.matches("0.0.0-beta-7"));
+  }
+
   macro_rules! assert_cmp {
     ($a:expr, $b:expr, $expected:expr) => {
       assert_eq!(
@@ -984,7 +998,7 @@ mod tests {
       let version = parse_npm_version(version_text).unwrap();
       assert!(
         req.matches(&version),
-        "Checking {req_text} satisfies {version_text}"
+        "Checking {version_text} satisfies {req_text}"
       );
     }
   }
@@ -1331,5 +1345,29 @@ mod tests {
       })
     );
     assert_eq!(package_nv_ref.as_specifier().as_str(), "npm:/package@1.2.3");
+  }
+
+  #[test]
+  fn zero_version_with_pre_release_matches() {
+    {
+      let req = parse_npm_version_req("<1.0.0-0").unwrap();
+      assert!(req.matches(&Version::parse_from_npm("0.0.0").unwrap()));
+      assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
+    }
+    {
+      let req = parse_npm_version_req("<1.0.0").unwrap();
+      assert!(req.matches(&Version::parse_from_npm("0.0.0").unwrap()));
+      assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
+    }
+    {
+      let req = parse_npm_version_req("^0").unwrap();
+      assert!(req.matches(&Version::parse_from_npm("0.0.0").unwrap()));
+      assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
+    }
+    {
+      let req = parse_npm_version_req("*").unwrap();
+      assert!(req.matches(&Version::parse_from_npm("0.0.0").unwrap()));
+      assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
+    }
   }
 }

@@ -129,10 +129,7 @@ pub struct VersionRange {
 impl VersionRange {
   pub fn all() -> VersionRange {
     VersionRange {
-      start: RangeBound::Version(VersionBound {
-        kind: VersionBoundKind::Inclusive,
-        version: Version::default(),
-      }),
+      start: RangeBound::Unbounded,
       end: RangeBound::Unbounded,
     }
   }
@@ -198,8 +195,11 @@ impl VersionRange {
   pub fn clamp(&self, range: &VersionRange) -> VersionRange {
     let start = self.start.clamp_start(&range.start);
     let end = self.end.clamp_end(&range.end);
-    // clamp the start range to the end when greater
-    let start = start.clamp_end(&end);
+    let start = match start {
+      RangeBound::Unbounded => start,
+      // clamp the start range to the end when greater
+      RangeBound::Version(_) => start.clamp_end(&end),
+    };
     VersionRange { start, end }
   }
 
@@ -570,7 +570,11 @@ impl Partial {
       end.pre = self.pre.clone();
     }
     VersionRange {
-      start: RangeBound::Unbounded,
+      // doesn't include 0.0.0 pre-release versions
+      start: RangeBound::Version(VersionBound {
+        kind: VersionBoundKind::Inclusive,
+        version: Version::default(),
+      }),
       end: RangeBound::version(end_kind, end),
     }
   }
