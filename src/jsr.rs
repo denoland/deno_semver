@@ -1,5 +1,7 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+use std::borrow::Cow;
+
 use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
@@ -50,6 +52,29 @@ impl JsrPackageReqReference {
 
   pub fn sub_path(&self) -> Option<&str> {
     self.0.sub_path.as_deref()
+  }
+
+  /// Package sub path normalized as a JSR export name.
+  pub fn export_name(&self) -> Cow<str> {
+    let Some(sub_path) = self.sub_path() else {
+      return Cow::Borrowed(".");
+    };
+    if sub_path.is_empty() || matches!(sub_path, "/" | ".") {
+      Cow::Borrowed(".")
+    } else {
+      let sub_path = if sub_path.starts_with('/') {
+        Cow::Owned(format!(".{}", sub_path))
+      } else if !sub_path.starts_with("./") {
+        Cow::Owned(format!("./{}", sub_path))
+      } else {
+        Cow::Borrowed(sub_path)
+      };
+      if let Some(prefix) = sub_path.strip_suffix('/') {
+        Cow::Owned(prefix.to_string())
+      } else {
+        sub_path
+      }
+    }
   }
 
   pub fn into_inner(self) -> PackageReqReference {
@@ -229,5 +254,19 @@ mod test {
       JsrDepPackageReq::npm(PackageReq::from_str("c@1").unwrap()).to_string(),
       "npm:c@1"
     );
+  }
+
+  #[test]
+  fn jsr_export_name() {
+    fn run_test(sub_path: &str, expected: &str) {
+      let req_ref =
+        JsrPackageReqReference::from_str(&format!("jsr:foo@1/{}", sub_path))
+          .unwrap();
+      assert_eq!(req_ref.export_name(), expected);
+    }
+
+    run_test("mod.ts", "./mod.ts");
+    run_test("test/", "./test");
+    run_test("", ".");
   }
 }
