@@ -61,19 +61,10 @@ impl JsrPackageReqReference {
     };
     if sub_path.is_empty() || matches!(sub_path, "/" | ".") {
       Cow::Borrowed(".")
+    } else if let Some(prefix) = sub_path.strip_suffix('/') {
+      Cow::Owned(format!("./{}", prefix))
     } else {
-      let sub_path = if sub_path.starts_with('/') {
-        Cow::Owned(format!(".{}", sub_path))
-      } else if !sub_path.starts_with("./") {
-        Cow::Owned(format!("./{}", sub_path))
-      } else {
-        Cow::Borrowed(sub_path)
-      };
-      if let Some(prefix) = sub_path.strip_suffix('/') {
-        Cow::Owned(prefix.to_string())
-      } else {
-        sub_path
-      }
+      Cow::Owned(format!("./{}", sub_path))
     }
   }
 
