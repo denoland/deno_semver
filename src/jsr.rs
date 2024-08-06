@@ -56,16 +56,7 @@ impl JsrPackageReqReference {
 
   /// Package sub path normalized as a JSR export name.
   pub fn export_name(&self) -> Cow<str> {
-    let Some(sub_path) = self.sub_path() else {
-      return Cow::Borrowed(".");
-    };
-    if sub_path.is_empty() || matches!(sub_path, "/" | ".") {
-      Cow::Borrowed(".")
-    } else if let Some(prefix) = sub_path.strip_suffix('/') {
-      Cow::Owned(format!("./{}", prefix))
-    } else {
-      Cow::Owned(format!("./{}", sub_path))
-    }
+    normalized_export_name(self.sub_path())
   }
 
   pub fn into_inner(self) -> PackageReqReference {
@@ -108,6 +99,11 @@ impl JsrPackageNvReference {
     self.0.sub_path.as_deref()
   }
 
+  /// Package sub path normalized as a JSR export name.
+  pub fn export_name(&self) -> Cow<str> {
+    normalized_export_name(self.sub_path())
+  }
+
   pub fn into_inner(self) -> PackageNvReference {
     self.0
   }
@@ -138,6 +134,25 @@ impl<'de> Deserialize<'de> for JsrPackageNvReference {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
+  }
+}
+
+pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
+  let Some(sub_path) = sub_path else {
+    return Cow::Borrowed(".");
+  };
+  if sub_path.is_empty() || matches!(sub_path, "/" | ".") {
+    Cow::Borrowed(".")
+  } else if sub_path.starts_with("./") {
+    if let Some(prefix) = sub_path.strip_suffix('/') {
+      Cow::Borrowed(prefix)
+    } else {
+      Cow::Borrowed(sub_path)
+    }
+  } else {
+    let sub_path = sub_path.strip_suffix('/').unwrap_or(sub_path);
+    let sub_path = sub_path.strip_prefix('/').unwrap_or(sub_path);
+    Cow::Owned(format!("./{}", sub_path))
   }
 }
 
@@ -248,16 +263,16 @@ mod test {
   }
 
   #[test]
-  fn jsr_export_name() {
+  fn test_normalized_export_name() {
     fn run_test(sub_path: &str, expected: &str) {
-      let req_ref =
-        JsrPackageReqReference::from_str(&format!("jsr:foo@1/{}", sub_path))
-          .unwrap();
-      assert_eq!(req_ref.export_name(), expected);
+      assert_eq!(normalized_export_name(Some(sub_path)), expected);
     }
 
     run_test("mod.ts", "./mod.ts");
     run_test("test/", "./test");
+    run_test("./test/", "./test");
+    run_test("./test", "./test");
+    run_test("/test", "./test");
     run_test("", ".");
   }
 }
