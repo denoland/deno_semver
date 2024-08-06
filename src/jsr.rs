@@ -143,16 +143,14 @@ pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
   };
   if sub_path.is_empty() || matches!(sub_path, "/" | ".") {
     Cow::Borrowed(".")
-  } else if sub_path.starts_with("./") {
-    if let Some(prefix) = sub_path.strip_suffix('/') {
-      Cow::Borrowed(prefix)
-    } else {
-      Cow::Borrowed(sub_path)
-    }
   } else {
     let sub_path = sub_path.strip_suffix('/').unwrap_or(sub_path);
-    let sub_path = sub_path.strip_prefix('/').unwrap_or(sub_path);
-    Cow::Owned(format!("./{}", sub_path))
+    if sub_path.starts_with("./") {
+      Cow::Borrowed(sub_path)
+    } else {
+      let sub_path = sub_path.strip_prefix('/').unwrap_or(sub_path);
+      Cow::Owned(format!("./{}", sub_path))
+    }
   }
 }
 
