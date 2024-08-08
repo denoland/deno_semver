@@ -129,6 +129,10 @@ pub enum PackageReqPartsParseError {
   NoPackageName,
   #[error("Did not contain a valid package name.")]
   InvalidPackageName,
+  #[error(
+    "Packages in the format <scope>/<name> must start with an '@' symbol."
+  )]
+  MissingAtSymbol,
   #[error("Invalid version requirement. {source:#}")]
   VersionReq {
     #[source]
@@ -187,7 +191,11 @@ impl PackageReq {
       Ok(req) => Ok(req),
       Err(err) => Err(PackageReqParseError {
         text: text.to_string(),
-        source: err,
+        source: if !text.starts_with('@') && text.contains('/') {
+          PackageReqPartsParseError::MissingAtSymbol
+        } else {
+          err
+        },
       }),
     }
   }
@@ -526,5 +534,18 @@ mod test {
     // sort version req descending
     assert_eq!(cmp_req("a@1", "a@2"), Ordering::Greater);
     assert_eq!(cmp_req("a@2", "a@1"), Ordering::Less);
+  }
+
+  #[test]
+  fn missing_at_symbol() {
+    let err = PackageReq::from_str("scope/name").unwrap_err();
+    assert!(
+      matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::MissingAtSymbol
+      ),
+      "{:#}",
+      err
+    );
   }
 }
