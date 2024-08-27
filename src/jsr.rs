@@ -214,6 +214,7 @@ impl JsrDepPackageReq {
     }
   }
 
+  #[allow(clippy::should_implement_trait)]
   pub fn from_str(text: &str) -> Result<Self, JsrDepPackageReqParseError> {
     if let Some(req) = text.strip_prefix("jsr:") {
       Ok(Self::jsr(PackageReq::from_str(req)?))
