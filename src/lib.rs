@@ -190,6 +190,15 @@ pub enum RangeSetOrTag {
   Tag(String),
 }
 
+impl std::fmt::Display for RangeSetOrTag {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      RangeSetOrTag::RangeSet(range_set) => write!(f, "{}", range_set),
+      RangeSetOrTag::Tag(tag) => write!(f, "{}", tag),
+    }
+  }
+}
+
 impl RangeSetOrTag {
   pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
     match (self, other) {
