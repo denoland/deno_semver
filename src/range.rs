@@ -18,7 +18,7 @@ impl std::fmt::Display for VersionRangeSet {
       _ => {
         for (i, range) in self.0.iter().enumerate() {
           if i > 0 {
-            write!(f, "{}", " || ")?;
+            write!(f, " || ")?;
           }
           write!(f, "{}", range)?;
         }
@@ -155,7 +155,7 @@ impl std::fmt::Display for VersionRange {
       }
 
       if start.minor == end.minor {
-        return end.patch == start.patch && !start.pre.is_empty();
+        end.patch == start.patch && !start.pre.is_empty()
       } else {
         let Some(one_minor_higher) = start.minor.checked_add(1) else {
           return false;
@@ -237,7 +237,7 @@ impl std::fmt::Display for VersionRange {
                     return write!(f, "{}", start.version.major);
                   }
                 }
-              } else if start.version.major == start.version.major {
+              } else if start.version.major == end.version.major {
                 // check if we can write out `~1.1.0` as `1.1`
                 if let Some(one_minor_higher) =
                   start.version.minor.checked_add(1)
@@ -896,6 +896,7 @@ mod test {
     run_test("1.2.0", "1.2.0");
     run_test("^1.0.0", "1");
     run_test("~1.0.0", "1.0");
+    run_test("1.1.0 - 3.1.0", ">=1.1.0 <=3.1.0");
 
     // Exact
     run_test("1.2.3", "1.2.3");
