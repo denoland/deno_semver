@@ -4,6 +4,7 @@ use std::borrow::Cow;
 
 use serde::Deserialize;
 use serde::Serialize;
+use thiserror::Error;
 use url::Url;
 
 use crate::package::PackageKind;
@@ -11,6 +12,7 @@ use crate::package::PackageNv;
 use crate::package::PackageNvReference;
 use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
+use crate::package::PackageReqParseError;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
 
@@ -154,6 +156,14 @@ pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
   }
 }
 
+#[derive(Error, Debug, Clone)]
+pub enum JsrDepPackageReqParseError {
+  #[error("Unexpected JSR dependency scheme '{}'.", .0)]
+  NotExpectedScheme(String),
+  #[error(transparent)]
+  PackageReqParse(#[from] PackageReqParseError),
+}
+
 /// A package constraint for a JSR dependency which could be from npm or JSR.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct JsrDepPackageReq {
@@ -164,6 +174,28 @@ pub struct JsrDepPackageReq {
 impl std::fmt::Display for JsrDepPackageReq {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}{}", self.kind.scheme_with_colon(), self.req)
+  }
+}
+
+impl Serialize for JsrDepPackageReq {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    serializer.serialize_str(&self.to_string())
+  }
+}
+
+impl<'de> Deserialize<'de> for JsrDepPackageReq {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    let text = String::deserialize(deserializer)?;
+    match Self::from_str(&text) {
+      Ok(req) => Ok(req),
+      Err(err) => Err(serde::de::Error::custom(err)),
+    }
   }
 }
 
@@ -179,6 +211,23 @@ impl JsrDepPackageReq {
     Self {
       kind: PackageKind::Npm,
       req,
+    }
+  }
+
+  #[allow(clippy::should_implement_trait)]
+  pub fn from_str(text: &str) -> Result<Self, JsrDepPackageReqParseError> {
+    if let Some(req) = text.strip_prefix("jsr:") {
+      Ok(Self::jsr(PackageReq::from_str(req)?))
+    } else if let Some(req) = text.strip_prefix("npm:") {
+      Ok(Self::npm(PackageReq::from_str(req)?))
+    } else {
+      Err(JsrDepPackageReqParseError::NotExpectedScheme(
+        text
+          .split_once(':')
+          .map(|(scheme, _)| scheme)
+          .unwrap_or(text)
+          .to_string(),
+      ))
     }
   }
 }
@@ -272,5 +321,42 @@ mod test {
     run_test("./test", "./test");
     run_test("/test", "./test");
     run_test("", ".");
+  }
+
+  #[test]
+  fn test_jsr_dep_pkg_req_from_str() {
+    {
+      let result = JsrDepPackageReq::from_str("jsr:a@^1.0").unwrap();
+      assert_eq!(result.kind, PackageKind::Jsr);
+      assert_eq!(result.req.to_string(), "a@^1.0");
+    }
+    {
+      let result = JsrDepPackageReq::from_str("npm:a@^1.0").unwrap();
+      assert_eq!(result.kind, PackageKind::Npm);
+      assert_eq!(result.req.to_string(), "a@^1.0");
+    }
+    {
+      let err = JsrDepPackageReq::from_str("other:a@^1.0").unwrap_err();
+      match err {
+        JsrDepPackageReqParseError::NotExpectedScheme(scheme) => {
+          assert_eq!(scheme, "other");
+        }
+        _ => unreachable!(),
+      }
+    }
+  }
+
+  #[test]
+  fn test_jsr_dep_pkg_req_serializable() {
+    fn run_test(text: &str) {
+      let start = JsrDepPackageReq::from_str(text).unwrap();
+      let value = serde_json::to_value(&start).unwrap();
+      let deserialized: JsrDepPackageReq =
+        serde_json::from_value(value).unwrap();
+      assert_eq!(deserialized, start);
+    }
+
+    run_test("jsr:a@1");
+    run_test("npm:a@1")
   }
 }
