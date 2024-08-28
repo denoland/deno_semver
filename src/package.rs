@@ -8,6 +8,7 @@ use serde::Serialize;
 use thiserror::Error;
 use url::Url;
 
+use crate::npm::NpmVersionReqParseError;
 use crate::Version;
 use crate::VersionReq;
 use crate::VersionReqSpecifierParseError;
@@ -30,7 +31,7 @@ impl PackageKind {
 
 #[derive(Error, Debug, Clone)]
 pub enum PackageReqReferenceParseError {
-  #[error("Not {} specifier.", .0.scheme_with_colon())]
+  #[error("Not {} specifier", .0.scheme_with_colon())]
   NotExpectedScheme(PackageKind),
   #[error(transparent)]
   Invalid(Box<PackageReqReferenceInvalidParseError>),
@@ -39,19 +40,19 @@ pub enum PackageReqReferenceParseError {
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid package specifier '{specifier}'. {source:#}")]
+#[error("Invalid package specifier '{specifier}'")]
 pub struct PackageReqReferenceInvalidParseError {
-  specifier: String,
+  pub specifier: String,
   #[source]
-  source: PackageReqPartsParseError,
+  pub source: PackageReqPartsParseError,
 }
 
 #[derive(Error, Debug, Clone)]
 #[error("Invalid package specifier '{0}{1}'. Did you mean to write '{0}{2}'?", .kind.scheme_with_colon(), current, suggested)]
 pub struct PackageReqReferenceInvalidWithVersionParseError {
-  kind: PackageKind,
-  current: String,
-  suggested: String,
+  pub kind: PackageKind,
+  pub current: String,
+  pub suggested: String,
 }
 
 /// A reference to a package's name, version constraint, and potential sub path.
@@ -79,7 +80,7 @@ impl PackageReqReference {
         return Err(PackageReqReferenceParseError::NotExpectedScheme(kind));
       }
     };
-    let (req, sub_path) = match PackageReq::parse_with_path(input) {
+    let (req, sub_path) = match PackageReq::parse_with_path_strict(input) {
       Ok(pkg_req) => pkg_req,
       Err(err) => {
         return Err(PackageReqReferenceParseError::Invalid(Box::new(
@@ -125,23 +126,22 @@ impl std::fmt::Display for PackageReqReference {
 
 #[derive(Error, Debug, Clone)]
 pub enum PackageReqPartsParseError {
-  #[error("Did not contain a package name.")]
+  #[error("Did not contain a package name")]
   NoPackageName,
-  #[error("Did not contain a valid package name.")]
+  #[error("Did not contain a valid package name")]
   InvalidPackageName,
   #[error(
-    "Packages in the format <scope>/<name> must start with an '@' symbol."
+    "Packages in the format <scope>/<name> must start with an '@' symbol"
   )]
   MissingAtSymbol,
-  #[error("Invalid version requirement. {source:#}")]
-  VersionReq {
-    #[source]
-    source: VersionReqSpecifierParseError,
-  },
+  #[error(transparent)]
+  SpecifierVersionReq(VersionReqSpecifierParseError),
+  #[error(transparent)]
+  NpmVersionReq(NpmVersionReqParseError),
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid package requirement '{text}'. {source:#}")]
+#[error("Invalid package requirement '{text}'")]
 pub struct PackageReqParseError {
   pub text: String,
   #[source]
@@ -169,25 +169,45 @@ impl std::fmt::Display for PackageReq {
 impl PackageReq {
   #[allow(clippy::should_implement_trait)]
   pub fn from_str(text: &str) -> Result<Self, PackageReqParseError> {
-    fn from_str_inner(
+    Self::from_str_inner(text, Self::parse_with_path_strict)
+  }
+
+  pub fn from_str_loose(text: &str) -> Result<Self, PackageReqParseError> {
+    Self::from_str_inner(text, Self::parse_with_path_loose)
+  }
+
+  fn from_str_inner(
+    text: &str,
+    parse_with_path: impl FnOnce(
+      &str,
+    )
+      -> Result<(Self, &str), PackageReqPartsParseError>,
+  ) -> Result<Self, PackageReqParseError> {
+    fn inner(
       text: &str,
+      parse_with_path: impl FnOnce(
+        &str,
+      ) -> Result<
+        (PackageReq, &str),
+        PackageReqPartsParseError,
+      >,
     ) -> Result<PackageReq, PackageReqPartsParseError> {
-      let (req, path) = PackageReq::parse_with_path(text)?;
+      let (req, path) = parse_with_path(text)?;
       if !path.is_empty() {
-        return Err(PackageReqPartsParseError::VersionReq {
-          source: VersionReqSpecifierParseError {
+        return Err(PackageReqPartsParseError::SpecifierVersionReq(
+          VersionReqSpecifierParseError {
             source: ParseErrorFailure::new(
               &text[text.len() - path.len() - 1..],
               "Unexpected character '/'",
             )
             .into_error(),
           },
-        });
+        ));
       }
       Ok(req)
     }
 
-    match from_str_inner(text) {
+    match inner(text, parse_with_path) {
       Ok(req) => Ok(req),
       Err(err) => Err(PackageReqParseError {
         text: text.to_string(),
@@ -200,8 +220,29 @@ impl PackageReq {
     }
   }
 
+  fn parse_with_path_strict(
+    text: &str,
+  ) -> Result<(Self, &str), PackageReqPartsParseError> {
+    PackageReq::parse_with_path(text, |version| {
+      VersionReq::parse_from_specifier(version)
+        .map_err(PackageReqPartsParseError::SpecifierVersionReq)
+    })
+  }
+
+  fn parse_with_path_loose(
+    text: &str,
+  ) -> Result<(Self, &str), PackageReqPartsParseError> {
+    PackageReq::parse_with_path(text, |version| {
+      VersionReq::parse_from_npm(version)
+        .map_err(PackageReqPartsParseError::NpmVersionReq)
+    })
+  }
+
   fn parse_with_path(
     input: &str,
+    parse_version: impl FnOnce(
+      &str,
+    ) -> Result<VersionReq, PackageReqPartsParseError>,
   ) -> Result<(Self, &str), PackageReqPartsParseError> {
     // Strip leading slash, which might come from import map
     let input = input.strip_prefix('/').unwrap_or(input);
@@ -225,9 +266,7 @@ impl PackageReq {
     let (last_name_part, version_req) = if let Some((last_name_part, version)) =
       last_name_part.rsplit_once('@')
     {
-      let version_req = VersionReq::parse_from_specifier(version)
-        .map_err(|err| PackageReqPartsParseError::VersionReq { source: err })?;
-      (last_name_part, Some(version_req))
+      (last_name_part, Some(parse_version(version)?))
     } else {
       (last_name_part, None)
     };
@@ -243,6 +282,11 @@ impl PackageReq {
       sub_path,
     ))
   }
+
+  /// Outputs a normalized string representation of the package requirement.
+  pub fn to_string_normalized(&self) -> String {
+    format!("{}@{}", self.name, self.version_req.inner())
+  }
 }
 
 impl Serialize for PackageReq {
@@ -250,7 +294,7 @@ impl Serialize for PackageReq {
   where
     S: serde::Serializer,
   {
-    serializer.serialize_str(&self.to_string())
+    serializer.serialize_str(&self.to_string_normalized())
   }
 }
 
@@ -260,7 +304,7 @@ impl<'de> Deserialize<'de> for PackageReq {
     D: serde::Deserializer<'de>,
   {
     let text = String::deserialize(deserializer)?;
-    match Self::from_str(&text) {
+    match Self::from_str_loose(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -506,7 +550,7 @@ mod test {
   fn serialize_deserialize_package_req() {
     let package_req = PackageReq::from_str("test@^1.0").unwrap();
     let json = serde_json::to_string(&package_req).unwrap();
-    assert_eq!(json, "\"test@^1.0\"");
+    assert_eq!(json, "\"test@1\"");
     let result = serde_json::from_str::<PackageReq>(&json).unwrap();
     assert_eq!(result, package_req);
   }

@@ -36,7 +36,7 @@ pub fn is_valid_npm_tag(value: &str) -> bool {
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid npm version. {source}")]
+#[error("Invalid npm version")]
 pub struct NpmVersionParseError {
   #[source]
   pub(crate) source: ParseErrorFailureError,
@@ -79,7 +79,7 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid npm version requirement. {source}")]
+#[error("Invalid version requirement")]
 pub struct NpmVersionReqParseError {
   #[source]
   pub source: ParseErrorFailureError,
@@ -778,9 +778,11 @@ mod tests {
   fn range_parse() {
     // https://github.com/npm/node-semver/blob/4907647d169948a53156502867ed679268063a9f/test/fixtures/range-parse.js
     let fixtures = &[
+      // note: some of these tests previously used a `-0` pre-release (see link),
+      // but I removed them because it didn't seem relevant
       ("1.0.0 - 2.0.0", ">=1.0.0 <=2.0.0"),
-      ("1 - 2", ">=1.0.0 <3.0.0-0"),
-      ("1.0 - 2.0", ">=1.0.0 <2.1.0-0"),
+      ("1 - 2", ">=1.0.0 <3.0.0"),
+      ("1.0 - 2.0", ">=1.0.0 <2.1.0"),
       ("1.0.0", "1.0.0"),
       (">=*", "*"),
       ("", "*"),
@@ -789,7 +791,7 @@ mod tests {
       (">=1.0.0", ">=1.0.0"),
       (">1.0.0", ">1.0.0"),
       ("<=2.0.0", "<=2.0.0"),
-      ("1", ">=1.0.0 <2.0.0-0"),
+      ("1", ">=1.0.0 <2.0.0"),
       ("<=2.0.0", "<=2.0.0"),
       ("<=2.0.0", "<=2.0.0"),
       ("<2.0.0", "<2.0.0"),
@@ -811,60 +813,60 @@ mod tests {
       (">=0.2.3 || <0.0.1", ">=0.2.3||<0.0.1"),
       (">=0.2.3 || <0.0.1", ">=0.2.3||<0.0.1"),
       ("||", "*"),
-      ("2.x.x", ">=2.0.0 <3.0.0-0"),
-      ("1.2.x", ">=1.2.0 <1.3.0-0"),
-      ("1.2.x || 2.x", ">=1.2.0 <1.3.0-0||>=2.0.0 <3.0.0-0"),
-      ("1.2.x || 2.x", ">=1.2.0 <1.3.0-0||>=2.0.0 <3.0.0-0"),
+      ("2.x.x", ">=2.0.0 <3.0.0"),
+      ("1.2.x", ">=1.2.0 <1.3.0"),
+      ("1.2.x || 2.x", ">=1.2.0 <1.3.0||>=2.0.0 <3.0.0"),
+      ("1.2.x || 2.x", ">=1.2.0 <1.3.0||>=2.0.0 <3.0.0"),
       ("x", "*"),
-      ("2.*.*", ">=2.0.0 <3.0.0-0"),
-      ("1.2.*", ">=1.2.0 <1.3.0-0"),
-      ("1.2.* || 2.*", ">=1.2.0 <1.3.0-0||>=2.0.0 <3.0.0-0"),
+      ("2.*.*", ">=2.0.0 <3.0.0"),
+      ("1.2.*", ">=1.2.0 <1.3.0"),
+      ("1.2.* || 2.*", ">=1.2.0 <1.3.0||>=2.0.0 <3.0.0"),
       ("*", "*"),
-      ("2", ">=2.0.0 <3.0.0-0"),
-      ("2.3", ">=2.3.0 <2.4.0-0"),
-      ("~2.4", ">=2.4.0 <2.5.0-0"),
-      ("~2.4", ">=2.4.0 <2.5.0-0"),
-      ("~>3.2.1", ">=3.2.1 <3.3.0-0"),
-      ("~1", ">=1.0.0 <2.0.0-0"),
-      ("~>1", ">=1.0.0 <2.0.0-0"),
-      ("~> 1", ">=1.0.0 <2.0.0-0"),
-      ("~>=1", ">=1.0.0 <2.0.0-0"),
-      ("~>==1", ">=1.0.0 <2.0.0-0"),
-      ("~1.0", ">=1.0.0 <1.1.0-0"),
-      ("~ 1.0", ">=1.0.0 <1.1.0-0"),
-      ("~=1.0", ">=1.0.0 <1.1.0-0"),
-      ("~==1.0", ">=1.0.0 <1.1.0-0"),
-      ("^0", "<1.0.0-0"),
-      ("^ 1", ">=1.0.0 <2.0.0-0"),
-      ("^0.1", ">=0.1.0 <0.2.0-0"),
-      ("^1.0", ">=1.0.0 <2.0.0-0"),
-      ("^1.2", ">=1.2.0 <2.0.0-0"),
-      ("^0.0.1", ">=0.0.1 <0.0.2-0"),
-      ("^0.0.1-beta", ">=0.0.1-beta <0.0.2-0"),
-      ("^0.1.2", ">=0.1.2 <0.2.0-0"),
-      ("^1.2.3", ">=1.2.3 <2.0.0-0"),
-      ("^1.2.3-beta.4", ">=1.2.3-beta.4 <2.0.0-0"),
-      ("^=1.0.0", ">=1.0.0 <2.0.0-0"),
-      ("^==1.0.0", ">=1.0.0 <2.0.0-0"),
-      ("<1", "<1.0.0-0"),
-      ("< 1", "<1.0.0-0"),
+      ("2", ">=2.0.0 <3.0.0"),
+      ("2.3", ">=2.3.0 <2.4.0"),
+      ("~2.4", ">=2.4.0 <2.5.0"),
+      ("~2.4", ">=2.4.0 <2.5.0"),
+      ("~>3.2.1", ">=3.2.1 <3.3.0"),
+      ("~1", ">=1.0.0 <2.0.0"),
+      ("~>1", ">=1.0.0 <2.0.0"),
+      ("~> 1", ">=1.0.0 <2.0.0"),
+      ("~>=1", ">=1.0.0 <2.0.0"),
+      ("~>==1", ">=1.0.0 <2.0.0"),
+      ("~1.0", ">=1.0.0 <1.1.0"),
+      ("~ 1.0", ">=1.0.0 <1.1.0"),
+      ("~=1.0", ">=1.0.0 <1.1.0"),
+      ("~==1.0", ">=1.0.0 <1.1.0"),
+      ("^0", "<1.0.0"),
+      ("^ 1", ">=1.0.0 <2.0.0"),
+      ("^0.1", ">=0.1.0 <0.2.0"),
+      ("^1.0", ">=1.0.0 <2.0.0"),
+      ("^1.2", ">=1.2.0 <2.0.0"),
+      ("^0.0.1", ">=0.0.1 <0.0.2"),
+      ("^0.0.1-beta", ">=0.0.1-beta <0.0.2"),
+      ("^0.1.2", ">=0.1.2 <0.2.0"),
+      ("^1.2.3", ">=1.2.3 <2.0.0"),
+      ("^1.2.3-beta.4", ">=1.2.3-beta.4 <2.0.0"),
+      ("^=1.0.0", ">=1.0.0 <2.0.0"),
+      ("^==1.0.0", ">=1.0.0 <2.0.0"),
+      ("<1", "<1.0.0"),
+      ("< 1", "<1.0.0"),
       (">=1", ">=1.0.0"),
       (">= 1", ">=1.0.0"),
-      ("<1.2", "<1.2.0-0"),
-      ("< 1.2", "<1.2.0-0"),
-      ("1", ">=1.0.0 <2.0.0-0"),
-      ("^ 1.2 ^ 1", ">=1.2.0 <2.0.0-0 >=1.0.0"),
+      ("<1.2", "<1.2.0"),
+      ("< 1.2", "<1.2.0"),
+      ("1", ">=1.0.0 <2.0.0"),
+      ("^ 1.2 ^ 1", ">=1.2.0 <2.0.0 >=1.0.0"),
       ("1.2 - 3.4.5", ">=1.2.0 <=3.4.5"),
-      ("1.2.3 - 3.4", ">=1.2.3 <3.5.0-0"),
-      ("1.2 - 3.4", ">=1.2.0 <3.5.0-0"),
+      ("1.2.3 - 3.4", ">=1.2.3 <3.5.0"),
+      ("1.2 - 3.4", ">=1.2.0 <3.5.0"),
       (">1", ">=2.0.0"),
       (">1.2", ">=1.3.0"),
-      (">X", "<0.0.0-0"),
-      ("<X", "<0.0.0-0"),
-      ("<x <* || >* 2.x", "<0.0.0-0"),
+      (">X", "<0.0.0"),
+      ("<X", "<0.0.0"),
+      ("<x <* || >* 2.x", "<0.0.0"),
       (">x 2.x || * || <x", "*"),
       (">01.02.03", ">1.2.3"),
-      ("~1.2.3beta", ">=1.2.3-beta <1.3.0-0"),
+      ("~1.2.3beta", ">=1.2.3-beta <1.3.0"),
       (">=09090", ">=9090.0.0"),
     ];
     for (range_text, expected) in fixtures {
@@ -992,6 +994,10 @@ mod tests {
       ("<=7.x", "7.9.9"),
       // additional tests
       ("1.0.0-alpha.13", "1.0.0-alpha.13"),
+      (">1.0.0-beta.1 <=1.1.0", "1.0.0"),
+      (">1.0.0-beta.1 <=1.1.0", "1.0.0-beta.2"),
+      (">1.0.0-beta.1 <=1.1.0", "1.1.0"),
+      ("1 - 2.0.0-beta.2", "2.0.0-beta.1"),
     ];
     for (req_text, version_text) in fixtures {
       let req = parse_npm_version_req(req_text).unwrap();
@@ -1088,6 +1094,9 @@ mod tests {
       (">=1.0.0 <1.1.0", "1.1.0"),
       (">=1.0.0 <1.1.0", "1.1.0-pre"),
       (">=1.0.0 <1.1.0-pre", "1.1.0-pre"),
+      // additional tests
+      (">1.0.0-beta.1 <=1.1.0", "1.0.0-beta.1"),
+      (">1.0.0-beta.1 <=1.1.0", "1.1.0-beta.1"),
     ];
 
     for (req_text, version_text) in fixtures {
@@ -1255,13 +1264,14 @@ mod tests {
       })
     );
 
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm:@package")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm:@package'. Did not contain a valid package name."
-    );
+    let err = NpmPackageReqReference::from_str("npm:@package").unwrap_err();
+    match err {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::InvalidPackageName
+      )),
+      _ => unreachable!(),
+    }
 
     // should parse leading slash
     assert_eq!(
@@ -1296,20 +1306,20 @@ mod tests {
     );
 
     // should error for no name
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm:/")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm:/'. Did not contain a package name."
-    );
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm://test")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm://test'. Did not contain a package name."
-    );
+    match NpmPackageReqReference::from_str("npm:/").unwrap_err() {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::NoPackageName
+      )),
+      _ => unreachable!(),
+    }
+    match NpmPackageReqReference::from_str("npm://test").unwrap_err() {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::NoPackageName
+      )),
+      _ => unreachable!(),
+    }
   }
 
   #[test]

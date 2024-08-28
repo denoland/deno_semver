@@ -158,7 +158,7 @@ pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
 
 #[derive(Error, Debug, Clone)]
 pub enum JsrDepPackageReqParseError {
-  #[error("Unexpected JSR dependency scheme '{}'.", .0)]
+  #[error("Unexpected JSR dependency scheme '{}'. Expected 'npm:' or 'jsr:'", .0)]
   NotExpectedScheme(String),
   #[error(transparent)]
   PackageReqParse(#[from] PackageReqParseError),
@@ -182,7 +182,7 @@ impl Serialize for JsrDepPackageReq {
   where
     S: serde::Serializer,
   {
-    serializer.serialize_str(&self.to_string())
+    serializer.serialize_str(&self.to_string_normalized())
   }
 }
 
@@ -192,7 +192,7 @@ impl<'de> Deserialize<'de> for JsrDepPackageReq {
     D: serde::Deserializer<'de>,
   {
     let text = String::deserialize(deserializer)?;
-    match Self::from_str(&text) {
+    match Self::from_str_loose(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -216,10 +216,24 @@ impl JsrDepPackageReq {
 
   #[allow(clippy::should_implement_trait)]
   pub fn from_str(text: &str) -> Result<Self, JsrDepPackageReqParseError> {
+    Self::from_str_inner(text, PackageReq::from_str)
+  }
+
+  #[allow(clippy::should_implement_trait)]
+  pub fn from_str_loose(
+    text: &str,
+  ) -> Result<Self, JsrDepPackageReqParseError> {
+    Self::from_str_inner(text, PackageReq::from_str_loose)
+  }
+
+  fn from_str_inner(
+    text: &str,
+    parse_req: impl FnOnce(&str) -> Result<PackageReq, PackageReqParseError>,
+  ) -> Result<Self, JsrDepPackageReqParseError> {
     if let Some(req) = text.strip_prefix("jsr:") {
-      Ok(Self::jsr(PackageReq::from_str(req)?))
+      Ok(Self::jsr(parse_req(req)?))
     } else if let Some(req) = text.strip_prefix("npm:") {
-      Ok(Self::npm(PackageReq::from_str(req)?))
+      Ok(Self::npm(parse_req(req)?))
     } else {
       Err(JsrDepPackageReqParseError::NotExpectedScheme(
         text
@@ -229,6 +243,18 @@ impl JsrDepPackageReq {
           .to_string(),
       ))
     }
+  }
+
+  /// Outputs a normalized string representation of this dependency.
+  ///
+  /// Note: The normalized string is not safe for a URL. It's best used for serialization.
+  pub fn to_string_normalized(&self) -> String {
+    format!(
+      "{}{}@{}",
+      self.kind.scheme_with_colon(),
+      self.req.name,
+      self.req.version_req.inner()
+    )
   }
 }
 
@@ -349,7 +375,7 @@ mod test {
   #[test]
   fn test_jsr_dep_pkg_req_serializable() {
     fn run_test(text: &str) {
-      let start = JsrDepPackageReq::from_str(text).unwrap();
+      let start = JsrDepPackageReq::from_str_loose(text).unwrap();
       let value = serde_json::to_value(&start).unwrap();
       let deserialized: JsrDepPackageReq =
         serde_json::from_value(value).unwrap();
@@ -357,6 +383,28 @@ mod test {
     }
 
     run_test("jsr:a@1");
-    run_test("npm:a@1")
+    run_test("npm:a@1");
+    run_test("npm:a@1 - 1.5");
+    run_test("npm:a@1 || 2 || 3");
+  }
+
+  #[test]
+  fn test_jsr_dep_pkg_req_normalized() {
+    #[track_caller]
+    fn run_test(text: &str, expected: &str) {
+      let start = JsrDepPackageReq::from_str_loose(text).unwrap();
+      let normalized = start.to_string_normalized();
+      assert_eq!(normalized, expected);
+      // ensure it works when parsing back as loose
+      assert_eq!(
+        JsrDepPackageReq::from_str_loose(&normalized).unwrap(),
+        start
+      );
+    }
+
+    // the main tests for this are done on RangeSet
+    run_test("jsr:a", "jsr:a@*");
+    run_test("jsr:a@^1.0", "jsr:a@1");
+    run_test("jsr:a@1.2.3 || 1.4.5", "jsr:a@1.2.3 || 1.4.5"); // note: this is the serialized form--it's not a url
   }
 }

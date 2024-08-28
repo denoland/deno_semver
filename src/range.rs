@@ -11,6 +11,23 @@ use super::Version;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct VersionRangeSet(pub Vec<VersionRange>);
 
+impl std::fmt::Display for VersionRangeSet {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self.0.len() {
+      0 => write!(f, "*"),
+      _ => {
+        for (i, range) in self.0.iter().enumerate() {
+          if i > 0 {
+            write!(f, " || ")?;
+          }
+          write!(f, "{}", range)?;
+        }
+        Ok(())
+      }
+    }
+  }
+}
+
 impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
     self.0.iter().any(|r| r.satisfies(version))
@@ -124,6 +141,138 @@ impl VersionBound {
 pub struct VersionRange {
   pub start: RangeBound,
   pub end: RangeBound,
+}
+
+impl std::fmt::Display for VersionRange {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn matches_tilde(start: &Version, end: &Version) -> bool {
+      if !end.build.is_empty() || !end.pre.is_empty() {
+        return false;
+      }
+
+      if start.major != end.major {
+        return false;
+      }
+
+      if start.minor == end.minor {
+        end.patch == start.patch && !start.pre.is_empty()
+      } else {
+        let Some(one_minor_higher) = start.minor.checked_add(1) else {
+          return false;
+        };
+        // ~0.1.2 is equivalent to >=0.1.2 <0.2.0
+        // ~1.2.3 is equivalent to >=1.2.3 <1.3.0
+        end.minor == one_minor_higher && end.patch == 0
+      }
+    }
+
+    fn matches_caret(start: &Version, end: &Version) -> bool {
+      if !end.build.is_empty() || !end.pre.is_empty() {
+        return false;
+      }
+
+      if start.major == 0 {
+        // ~0.0.x is different than ^0.0.x, so handle that
+        if start.minor == 0 && end.minor == 0 {
+          let Some(one_patch_higher) = start.patch.checked_add(1) else {
+            return false;
+          };
+          return end.patch == one_patch_higher;
+        }
+        return false; // it will always use normalize to tilde in this case
+      }
+
+      let Some(one_major_higher) = start.major.checked_add(1) else {
+        return false;
+      };
+      // ^1.2.3 is equivalent to >=1.2.3 <2.0.0
+      end.major == one_major_higher && end.minor == 0 && end.patch == 0
+    }
+
+    fn is_zero_version(version: &Version) -> bool {
+      version.major == 0
+        && version.minor == 0
+        && version.patch == 0
+        && version.pre.is_empty()
+        && version.build.is_empty()
+    }
+
+    match &self.start {
+      RangeBound::Unbounded => match &self.end {
+        RangeBound::Unbounded => write!(f, "*"),
+        RangeBound::Version(end) => match end.kind {
+          VersionBoundKind::Inclusive => write!(f, "<={}", end.version),
+          VersionBoundKind::Exclusive => write!(f, "<{}", end.version),
+        },
+      },
+      RangeBound::Version(start) => match &self.end {
+        RangeBound::Unbounded => match start.kind {
+          VersionBoundKind::Inclusive => write!(f, ">={}", start.version),
+          VersionBoundKind::Exclusive => write!(f, ">{}", start.version),
+        },
+        RangeBound::Version(end) => match (start.kind, end.kind) {
+          (VersionBoundKind::Inclusive, VersionBoundKind::Inclusive) => {
+            if start.version == end.version {
+              write!(f, "{}", start.version)
+            } else if is_zero_version(&start.version) {
+              write!(f, "<={}", end.version)
+            } else {
+              write!(f, ">={} <={}", start.version, end.version)
+            }
+          }
+          (VersionBoundKind::Inclusive, VersionBoundKind::Exclusive) => {
+            if end.version.patch == 0
+              && start.version.patch == 0
+              && end.version.pre.is_empty()
+              && end.version.build.is_empty()
+              && start.version.pre.is_empty()
+              && start.version.build.is_empty()
+            {
+              // check if we can write out `^1.0.0` as `1`
+              if end.version.minor == 0 && start.version.minor == 0 {
+                if let Some(one_major_higher) =
+                  start.version.major.checked_add(1)
+                {
+                  if end.version.major == one_major_higher {
+                    return write!(f, "{}", start.version.major);
+                  }
+                }
+              } else if start.version.major == end.version.major {
+                // check if we can write out `~1.1.0` as `1.1`
+                if let Some(one_minor_higher) =
+                  start.version.minor.checked_add(1)
+                {
+                  if end.version.minor == one_minor_higher {
+                    return write!(
+                      f,
+                      "{}.{}",
+                      start.version.major, start.version.minor
+                    );
+                  }
+                }
+              }
+            }
+
+            if matches_tilde(&start.version, &end.version) {
+              write!(f, "~{}", start.version)
+            } else if matches_caret(&start.version, &end.version) {
+              write!(f, "^{}", start.version)
+            } else if is_zero_version(&start.version) {
+              write!(f, "<{}", end.version)
+            } else {
+              write!(f, ">={} <{}", start.version, end.version)
+            }
+          }
+          (VersionBoundKind::Exclusive, VersionBoundKind::Inclusive) => {
+            write!(f, ">{} <={}", start.version, end.version)
+          }
+          (VersionBoundKind::Exclusive, VersionBoundKind::Exclusive) => {
+            write!(f, ">{} <{}", start.version, end.version)
+          }
+        },
+      },
+    }
+  }
 }
 
 impl VersionRange {
@@ -523,6 +672,10 @@ impl Partial {
       }
       XRange::Val(patch) => {
         start.patch = patch;
+
+        if !self.pre.is_empty() && start_kind == VersionBoundKind::Exclusive {
+          start.pre = self.pre.clone();
+        }
       }
     }
 
@@ -564,6 +717,10 @@ impl Partial {
       }
       XRange::Val(patch) => {
         end.patch = patch;
+
+        if !self.pre.is_empty() && end_kind == VersionBoundKind::Exclusive {
+          end.pre = self.pre.clone();
+        }
       }
     }
     if end_kind == VersionBoundKind::Inclusive {
@@ -623,6 +780,8 @@ impl Partial {
 
 #[cfg(test)]
 mod test {
+  use crate::npm::parse_npm_version_req;
+
   use super::*;
 
   #[test]
@@ -712,5 +871,100 @@ mod test {
       kind,
       version: Version::parse_standard(ver).unwrap(),
     })
+  }
+
+  #[test]
+  fn range_set_or_tag_display() {
+    #[track_caller]
+    fn run_test(input: &str, expected: &str) {
+      let version_req = parse_npm_version_req(input).unwrap();
+      let output = version_req.inner().to_string();
+      assert_eq!(output, expected);
+      let reparsed = parse_npm_version_req(&output).unwrap();
+      assert_eq!(reparsed.inner(), version_req.inner());
+    }
+
+    // Basic caret and tilde tests
+    run_test("^0.0.1", "^0.0.1");
+    run_test("^0.1.0", "0.1"); // normalizes
+
+    // Zero major, minor, patch
+    run_test("1.0.0", "1.0.0");
+    run_test("1", "1");
+    run_test("1.0", "1.0");
+    run_test("1.2", "1.2");
+    run_test("1.2.0", "1.2.0");
+    run_test("^1.0.0", "1");
+    run_test("~1.0.0", "1.0");
+    run_test("1.1.0 - 3.1.0", ">=1.1.0 <=3.1.0");
+
+    // Exact
+    run_test("1.2.3", "1.2.3");
+
+    // More complex caret tests
+    run_test("^0.2.3", "~0.2.3"); // normalizes
+    run_test("^2.3.4", "^2.3.4");
+
+    // More complex tilde tests
+    run_test("~0.2.3", "~0.2.3");
+    run_test("~2.3.4", "~2.3.4");
+
+    // Exact versions and simple ranges
+    run_test("2.3.4", "2.3.4");
+    run_test(">2.3.4", ">2.3.4");
+    run_test(">=2.3.4", ">=2.3.4");
+    run_test("<2.3.4", "<2.3.4");
+    run_test("<=2.3.4", "<=2.3.4");
+
+    // Pre-release version tests
+    run_test("^1.0.0-beta.1", "^1.0.0-beta.1");
+    run_test("~1.0.0-beta.1", "~1.0.0-beta.1");
+    run_test("1.0.0-beta.1", "1.0.0-beta.1");
+
+    // Build metadata tests
+    run_test("1.0.0+build123", "1.0.0+build123");
+    run_test("^1.0.0+build123", "^1.0.0+build123");
+    run_test("~1.0.0+build123", "~1.0.0+build123");
+
+    // More edge cases with zero major versions
+    run_test("^0.0.2", "^0.0.2");
+    run_test("^0.0.0", "^0.0.0");
+    run_test("^0.0.0-pre", "^0.0.0-pre");
+    run_test("0.0.1", "0.0.1");
+
+    // Wildcard ranges
+    run_test("*", "*");
+    run_test(">=1.0.0 <2.0.0", "1"); // normalizes
+
+    // Testing exact zero versions with pre-releases
+    run_test("0.0.0-alpha", "0.0.0-alpha");
+    run_test("^0.0.0-alpha", "^0.0.0-alpha");
+
+    // Caret and tilde with pre-release and build metadata
+    run_test("^1.0.0-beta.1+build123", "^1.0.0-beta.1+build123");
+    run_test("~1.0.0-beta.1+build123", "~1.0.0-beta.1+build123");
+
+    // Exact pre-release versions with build metadata
+    run_test("1.0.0-beta.1+build123", "1.0.0-beta.1+build123");
+
+    // Ranges with different inclusive/exclusive combinations
+    run_test(">1.0.0-beta.1 <=1.1.0", ">1.0.0-beta.1 <=1.1.0");
+    run_test(">1.0.0 <1.1.0", ">1.0.0 <1.1.0");
+
+    // Pre-release with tilde normalization
+    run_test("^0.2.3-beta.1", "~0.2.3-beta.1"); // normalizes
+
+    // Pre-release with zero major and complex range
+    run_test("^0.0.2-alpha", "^0.0.2-alpha");
+    run_test("~0.0.2-alpha", "~0.0.2-alpha");
+
+    // Greater than pre-release version
+    run_test(">1.0.0-beta.1", ">1.0.0-beta.1");
+
+    // Less than pre-release version
+    run_test("<1.0.0-beta.1", "<1.0.0-beta.1");
+
+    // Or conditions
+    run_test("1 || 2 || 3", "1 || 2 || 3");
   }
 }
