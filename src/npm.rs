@@ -36,7 +36,7 @@ pub fn is_valid_npm_tag(value: &str) -> bool {
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid npm version. {source}")]
+#[error("Invalid npm version")]
 pub struct NpmVersionParseError {
   #[source]
   pub(crate) source: ParseErrorFailureError,
@@ -79,7 +79,7 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
 }
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid npm version requirement. {source}")]
+#[error("Invalid version requirement")]
 pub struct NpmVersionReqParseError {
   #[source]
   pub source: ParseErrorFailureError,
@@ -1264,13 +1264,14 @@ mod tests {
       })
     );
 
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm:@package")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm:@package'. Did not contain a valid package name."
-    );
+    let err = NpmPackageReqReference::from_str("npm:@package").unwrap_err();
+    match err {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::InvalidPackageName
+      )),
+      _ => unreachable!(),
+    }
 
     // should parse leading slash
     assert_eq!(
@@ -1305,20 +1306,20 @@ mod tests {
     );
 
     // should error for no name
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm:/")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm:/'. Did not contain a package name."
-    );
-    assert_eq!(
-      NpmPackageReqReference::from_str("npm://test")
-        .err()
-        .unwrap()
-        .to_string(),
-      "Invalid package specifier 'npm://test'. Did not contain a package name."
-    );
+    match NpmPackageReqReference::from_str("npm:/").unwrap_err() {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::NoPackageName
+      )),
+      _ => unreachable!(),
+    }
+    match NpmPackageReqReference::from_str("npm://test").unwrap_err() {
+      PackageReqReferenceParseError::Invalid(err) => assert!(matches!(
+        err.source,
+        crate::package::PackageReqPartsParseError::NoPackageName
+      )),
+      _ => unreachable!(),
+    }
   }
 
   #[test]

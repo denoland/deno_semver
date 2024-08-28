@@ -31,7 +31,7 @@ pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
   Lazy::new(|| VersionReq::parse_from_specifier("*").unwrap());
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid version. {source}")]
+#[error("Invalid version")]
 pub struct VersionParseError {
   #[source]
   source: monch::ParseErrorFailureError,
@@ -290,6 +290,11 @@ impl VersionReq {
 
   pub fn version_text(&self) -> &str {
     &self.raw_text
+  }
+
+  /// Outputs a normalized string representation of the version requirement.
+  pub fn to_string_normalized(&self) -> String {
+    format!("{}", self.inner())
   }
 }
 

@@ -13,7 +13,7 @@ use crate::VersionReq;
 use crate::is_valid_tag;
 
 #[derive(Error, Debug, Clone)]
-#[error("Invalid specifier version requirement. {source}")]
+#[error("Invalid specifier version requirement")]
 pub struct VersionReqSpecifierParseError {
   #[source]
   pub source: ParseErrorFailureError,
