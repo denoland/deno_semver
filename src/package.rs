@@ -675,6 +675,16 @@ mod test {
     assert_eq!(cmp_req("a@>=3.0.0 <=4", "a@>=3.0.0 <=4"), Ordering::Equal);
     assert_eq!(cmp_req("a@>=3.0.0 <4", "a@>=3.0.0 <=4"), Ordering::Less);
     assert_eq!(cmp_req("a@>=3.0.0 <3.5", "a@>=3.0.0 <3.6"), Ordering::Less);
+    // prefer one with less items when equal up to a point
+    assert_eq!(cmp_req("a@>=3 || 4.x", "a@>=3 || 4.x"), Ordering::Equal);
+    assert_eq!(
+      cmp_req("a@>=3 || 4.x", "a@>=3 || 4.x || 5.x"),
+      Ordering::Less
+    );
+    assert_eq!(
+      cmp_req("a@>=3 || 4.x || 5.x", "a@>=3 || 4.x"),
+      Ordering::Greater
+    );
   }
 
   #[test]
