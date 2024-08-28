@@ -9,7 +9,13 @@ use thiserror::Error;
 use url::Url;
 
 use crate::npm::NpmVersionReqParseError;
+use crate::range::RangeBound;
+use crate::range::VersionBound;
+use crate::RangeSetOrTag;
 use crate::Version;
+use crate::VersionBoundKind;
+use crate::VersionRange;
+use crate::VersionRangeSet;
 use crate::VersionReq;
 use crate::VersionReqSpecifierParseError;
 use crate::WILDCARD_VERSION_REQ;
@@ -323,25 +329,104 @@ impl PartialOrd for PackageReq {
 // mostly to create some determinism around how these are resolved.
 impl Ord for PackageReq {
   fn cmp(&self, other: &Self) -> Ordering {
+    // don't bother implementing Ord/PartialOrd on the lower level items
+    // because it's not so useful and it causes them to have a `.clamp()` method
+    // for Ord instead of their own defined methods
+    fn cmp_version_range(a: &VersionRange, b: &VersionRange) -> Ordering {
+      fn cmp_range_bound(
+        a: &RangeBound,
+        b: &RangeBound,
+        cmp_version_bound: impl Fn(&VersionBound, &VersionBound) -> Ordering,
+      ) -> Ordering {
+        match (a, b) {
+          (RangeBound::Unbounded, RangeBound::Unbounded) => Ordering::Equal,
+          (RangeBound::Unbounded, RangeBound::Version(_)) => Ordering::Greater,
+          (RangeBound::Version(_), RangeBound::Unbounded) => Ordering::Less,
+          (RangeBound::Version(a), RangeBound::Version(b)) => {
+            cmp_version_bound(a, b)
+          }
+        }
+      }
+
+      fn cmp_version_bound_kind_start(
+        a: VersionBoundKind,
+        b: VersionBoundKind,
+      ) -> Ordering {
+        match (a, b) {
+          (VersionBoundKind::Inclusive, VersionBoundKind::Inclusive)
+          | (VersionBoundKind::Exclusive, VersionBoundKind::Exclusive) => {
+            Ordering::Equal
+          }
+          (VersionBoundKind::Exclusive, VersionBoundKind::Inclusive) => {
+            Ordering::Less
+          }
+          (VersionBoundKind::Inclusive, VersionBoundKind::Exclusive) => {
+            Ordering::Greater
+          }
+        }
+      }
+
+      fn cmp_range_bound_start(a: &RangeBound, b: &RangeBound) -> Ordering {
+        cmp_range_bound(a, b, |a, b| {
+          // prefer higher versions first
+          match b.version.cmp(&a.version) {
+            Ordering::Equal => cmp_version_bound_kind_start(a.kind, b.kind),
+            ordering => ordering,
+          }
+        })
+      }
+
+      fn cmp_range_bound_end(a: &RangeBound, b: &RangeBound) -> Ordering {
+        cmp_range_bound(a, b, |a, b| {
+          // prefer lower versions first
+          match a.version.cmp(&b.version) {
+            Ordering::Equal => cmp_version_bound_kind_start(b.kind, a.kind), // reversed
+            ordering => ordering,
+          }
+        })
+      }
+
+      match cmp_range_bound_start(&a.start, &b.start) {
+        Ordering::Equal => cmp_range_bound_end(&a.end, &b.end),
+        ordering => ordering,
+      }
+    }
+
+    fn cmp_version_range_set(
+      a: &VersionRangeSet,
+      b: &VersionRangeSet,
+    ) -> Ordering {
+      for (a_item, b_item) in a.0.iter().zip(b.0.iter()) {
+        match cmp_version_range(a_item, b_item) {
+          Ordering::Equal => continue,
+          ordering => return ordering,
+        }
+      }
+
+      // prefer the one with the least number of items
+      a.0.len().cmp(&b.0.len())
+    }
+
     fn cmp_specifier_version_req(a: &VersionReq, b: &VersionReq) -> Ordering {
-      match a.tag() {
-        Some(a_tag) => match b.tag() {
-          Some(b_tag) => b_tag.cmp(a_tag), // sort descending
-          None => Ordering::Less,          // prefer a since tag
-        },
-        None => {
-          match b.tag() {
-            Some(_) => Ordering::Greater, // prefer b since tag
-            None => {
-              // At this point, just sort by text descending.
-              // We could maybe be a bit smarter here in the future.
-              b.to_string().cmp(&a.to_string())
+      match a.inner() {
+        RangeSetOrTag::Tag(a_tag) => {
+          match b.inner() {
+            RangeSetOrTag::Tag(b_tag) => b_tag.cmp(a_tag), // sort descending
+            RangeSetOrTag::RangeSet(_) => Ordering::Less, // prefer 'a' since tag
+          }
+        }
+        RangeSetOrTag::RangeSet(a_set) => {
+          match b.inner() {
+            RangeSetOrTag::Tag(_) => Ordering::Greater, // prefer 'b' since tag
+            RangeSetOrTag::RangeSet(b_set) => {
+              cmp_version_range_set(a_set, b_set)
             }
           }
         }
       }
     }
 
+    // compare the name, then the version req
     match self.name.cmp(&other.name) {
       Ordering::Equal => {
         cmp_specifier_version_req(&self.version_req, &other.version_req)
@@ -558,8 +643,8 @@ mod test {
   #[test]
   fn sorting_package_reqs() {
     fn cmp_req(a: &str, b: &str) -> Ordering {
-      let a = PackageReq::from_str(a).unwrap();
-      let b = PackageReq::from_str(b).unwrap();
+      let a = PackageReq::from_str_loose(a).unwrap();
+      let b = PackageReq::from_str_loose(b).unwrap();
       a.cmp(&b)
     }
 
@@ -578,6 +663,17 @@ mod test {
     // sort version req descending
     assert_eq!(cmp_req("a@1", "a@2"), Ordering::Greater);
     assert_eq!(cmp_req("a@2", "a@1"), Ordering::Less);
+    // prefer lower upper bound
+    assert_eq!(cmp_req("a@3", "a@3.0.0"), Ordering::Greater);
+    // prefer higher lower bound
+    assert_eq!(cmp_req("a@>=3.0.0", "a@>3.0.0"), Ordering::Greater);
+    assert_eq!(cmp_req("a@>=3.0.0", "a@>=3.0.0"), Ordering::Equal);
+    assert_eq!(cmp_req("a@>3.0.0", "a@>=3.0.0"), Ordering::Less);
+    // prefer lower upper bound (you end up with an intersection of both)
+    assert_eq!(cmp_req("a@>=3.0.0 <=4", "a@>=3.0.0 <4"), Ordering::Greater);
+    assert_eq!(cmp_req("a@>=3.0.0 <=4", "a@>=3.0.0 <=4"), Ordering::Equal);
+    assert_eq!(cmp_req("a@>=3.0.0 <4", "a@>=3.0.0 <=4"), Ordering::Less);
+    assert_eq!(cmp_req("a@>=3.0.0 <3.5", "a@>=3.0.0 <3.6"), Ordering::Less);
   }
 
   #[test]
