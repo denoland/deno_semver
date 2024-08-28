@@ -408,6 +408,7 @@ impl Ord for PackageReq {
     }
 
     fn cmp_specifier_version_req(a: &VersionReq, b: &VersionReq) -> Ordering {
+      // ignore the raw text as it's only for displaying to the user
       match a.inner() {
         RangeSetOrTag::Tag(a_tag) => {
           match b.inner() {
