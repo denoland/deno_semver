@@ -1396,4 +1396,11 @@ mod tests {
       assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
     }
   }
+
+  #[test]
+  fn test_is_valid_npm_tag() {
+    assert_eq!(is_valid_npm_tag("latest"), true);
+    assert_eq!(is_valid_npm_tag(""), false);
+    assert_eq!(is_valid_npm_tag("SD&*($#&%*(#*$%"), false);
+  }
 }
