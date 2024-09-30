@@ -36,10 +36,12 @@ pub fn parse_version_req_from_specifier(
           match range_result {
             Ok(range) => RangeSetOrTag::RangeSet(VersionRangeSet(vec![range])),
             Err(err) => {
-              if !is_valid_tag(input) {
-                return Err(err);
-              } else {
+              if is_valid_tag(input) {
                 RangeSetOrTag::Tag(input.to_string())
+              } else if input.trim().is_empty() {
+                return ParseError::fail(input, "Empty version constraint.");
+              } else {
+                return Err(err);
               }
             }
           },

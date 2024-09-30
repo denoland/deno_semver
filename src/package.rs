@@ -246,9 +246,10 @@ impl PackageReq {
 
   fn parse_with_path(
     input: &str,
-    parse_version: impl FnOnce(
+    parse_version_req: impl FnOnce(
       &str,
-    ) -> Result<VersionReq, PackageReqPartsParseError>,
+    )
+      -> Result<VersionReq, PackageReqPartsParseError>,
   ) -> Result<(Self, &str), PackageReqPartsParseError> {
     // Strip leading slash, which might come from import map
     let input = input.strip_prefix('/').unwrap_or(input);
@@ -272,7 +273,7 @@ impl PackageReq {
     let (last_name_part, version_req) = if let Some((last_name_part, version)) =
       last_name_part.rsplit_once('@')
     {
-      (last_name_part, Some(parse_version(version)?))
+      (last_name_part, Some(parse_version_req(version)?))
     } else {
       (last_name_part, None)
     };

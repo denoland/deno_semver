@@ -25,6 +25,10 @@ use super::VersionReq;
 use super::XRange;
 
 pub fn is_valid_npm_tag(value: &str) -> bool {
+  if value.trim().is_empty() {
+    return false;
+  }
+
   // a valid tag is anything that doesn't get url encoded
   // https://github.com/npm/npm-package-arg/blob/103c0fda8ed8185733919c7c6c73937cfb2baf3a/lib/npa.js#L399-L401
   value
@@ -1273,6 +1277,18 @@ mod tests {
       _ => unreachable!(),
     }
 
+    // missing version req
+    let err = NpmPackageReqReference::from_str("npm:package@").unwrap_err();
+    match err {
+      PackageReqReferenceParseError::Invalid(err) => match err.source {
+        crate::package::PackageReqPartsParseError::SpecifierVersionReq(err) => {
+          assert_eq!(err.source.message, "Empty version constraint.");
+        }
+        _ => unreachable!(),
+      },
+      _ => unreachable!(),
+    }
+
     // should parse leading slash
     assert_eq!(
       NpmPackageReqReference::from_str("npm:/@package/test/sub_path").unwrap(),
@@ -1379,5 +1395,12 @@ mod tests {
       assert!(req.matches(&Version::parse_from_npm("0.0.0").unwrap()));
       assert!(!req.matches(&Version::parse_from_npm("0.0.0-pre").unwrap()));
     }
+  }
+
+  #[test]
+  fn test_is_valid_npm_tag() {
+    assert_eq!(is_valid_npm_tag("latest"), true);
+    assert_eq!(is_valid_npm_tag(""), false);
+    assert_eq!(is_valid_npm_tag("SD&*($#&%*(#*$%"), false);
   }
 }
