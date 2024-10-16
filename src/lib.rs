@@ -21,6 +21,8 @@ mod specifier;
 pub use self::specifier::VersionReqSpecifierParseError;
 
 pub use self::range::Partial;
+pub use self::range::RangeBound;
+pub use self::range::VersionBound;
 pub use self::range::VersionBoundKind;
 pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
