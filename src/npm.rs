@@ -217,7 +217,7 @@ fn range(input: &str) -> ParseResult<VersionRange> {
       start: hyphen.start.as_lower_bound(),
       end: hyphen.end.as_upper_bound(),
     }),
-    map(separated_list(simple, whitespace_or_and), |ranges| {
+    map(separated_list(simple, range_separator), |ranges| {
       let mut final_range = VersionRange::all();
       for range in ranges {
         final_range = final_range.clamp(&range);
@@ -227,8 +227,12 @@ fn range(input: &str) -> ParseResult<VersionRange> {
   )(input)
 }
 
-fn whitespace_or_and(input: &str) -> ParseResult<&str> {
-  or(logical_and, whitespace)(input)
+fn range_separator(input: &str) -> ParseResult<()> {
+  fn comma(input: &str) -> ParseResult<()> {
+    map(delimited(skip_whitespace, ch(','), skip_whitespace), |_| ())(input)
+  }
+
+  or3(map(logical_and, |_| ()), comma, map(whitespace, |_| ()))(input)
 }
 
 #[derive(Debug, Clone)]
@@ -647,6 +651,17 @@ mod tests {
   #[test]
   pub fn npm_version_req_and_range() {
     let tester = NpmVersionReqTester::new(">= 1.2 && <= 2.0.0");
+    assert!(!tester.matches("1.1.9"));
+    assert!(tester.matches("1.2.2"));
+    assert!(tester.matches("1.2.0"));
+    assert!(tester.matches("1.9.9"));
+    assert!(!tester.matches("2.1.1"));
+    assert!(!tester.matches("2.0.1"));
+  }
+
+  #[test]
+  pub fn npm_version_req_comma_range() {
+    let tester = NpmVersionReqTester::new(">= 1.2, <= 2.0.0");
     assert!(!tester.matches("1.1.9"));
     assert!(tester.matches("1.2.2"));
     assert!(tester.matches("1.2.0"));
