@@ -231,11 +231,6 @@ fn whitespace_or_and(input: &str) -> ParseResult<&str> {
   or(logical_and, whitespace)(input)
 }
 
-// logical-and ::= ( ' ' ) * '&&' ( ' ' ) *
-fn logical_and(input: &str) -> ParseResult<&str> {
-  delimited(skip_whitespace, tag("&&"), skip_whitespace)(input)
-}
-
 #[derive(Debug, Clone)]
 struct Hyphen {
   start: Partial,
@@ -261,6 +256,11 @@ fn hyphen(input: &str) -> ParseResult<Hyphen> {
 // logical-or ::= ( ' ' ) * '||' ( ' ' ) *
 fn logical_or(input: &str) -> ParseResult<&str> {
   delimited(skip_whitespace, tag("||"), skip_whitespace)(input)
+}
+
+// logical-and ::= ( ' ' ) * '&&' ( ' ' ) *
+fn logical_and(input: &str) -> ParseResult<&str> {
+  delimited(skip_whitespace, tag("&&"), skip_whitespace)(input)
 }
 
 fn skip_whitespace_or_v(input: &str) -> ParseResult<()> {
