@@ -1,10 +1,10 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
-use std::cmp::Ordering;
 use deno_error::JsError;
 use monch::ParseErrorFailure;
 use serde::Deserialize;
 use serde::Serialize;
+use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
 
