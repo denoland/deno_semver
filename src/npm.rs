@@ -1,5 +1,6 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+use deno_error::JsError;
 use monch::*;
 use thiserror::Error;
 
@@ -39,7 +40,8 @@ pub fn is_valid_npm_tag(value: &str) -> bool {
 // A lot of the below is a re-implementation of parts of https://github.com/npm/node-semver
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
+#[class(type)]
 #[error("Invalid npm version")]
 pub struct NpmVersionParseError {
   #[source]
@@ -82,7 +84,8 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
   .map_err(|err| NpmVersionParseError { source: err })
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
+#[class(type)]
 #[error("Invalid version requirement")]
 pub struct NpmVersionReqParseError {
   #[source]

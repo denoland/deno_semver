@@ -32,7 +32,8 @@ pub use self::range::XRange;
 pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
   Lazy::new(|| VersionReq::parse_from_specifier("*").unwrap());
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, deno_error::JsError)]
+#[class(type)]
 #[error("Invalid version")]
 pub struct VersionParseError {
   #[source]
