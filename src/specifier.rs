@@ -12,7 +12,8 @@ use crate::VersionReq;
 
 use crate::is_valid_tag;
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, deno_error::JsError)]
+#[class(type)]
 #[error("Invalid specifier version requirement")]
 pub struct VersionReqSpecifierParseError {
   #[source]

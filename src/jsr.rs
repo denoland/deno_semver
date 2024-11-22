@@ -156,10 +156,12 @@ pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
   }
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, deno_error::JsError)]
 pub enum JsrDepPackageReqParseError {
+  #[class(type)]
   #[error("Unexpected JSR dependency scheme '{}'. Expected 'npm:' or 'jsr:'", .0)]
   NotExpectedScheme(String),
+  #[class(inherit)]
   #[error(transparent)]
   PackageReqParse(#[from] PackageReqParseError),
 }

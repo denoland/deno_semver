@@ -1,7 +1,7 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
 use std::cmp::Ordering;
-
+use deno_error::JsError;
 use monch::ParseErrorFailure;
 use serde::Deserialize;
 use serde::Serialize;
@@ -35,17 +35,21 @@ impl PackageKind {
   }
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
 pub enum PackageReqReferenceParseError {
+  #[class(type)]
   #[error("Not {} specifier", .0.scheme_with_colon())]
   NotExpectedScheme(PackageKind),
+  #[class(inherit)]
   #[error(transparent)]
   Invalid(Box<PackageReqReferenceInvalidParseError>),
+  #[class(inherit)]
   #[error(transparent)]
   InvalidPathWithVersion(Box<PackageReqReferenceInvalidWithVersionParseError>),
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
+#[class(type)]
 #[error("Invalid package specifier '{specifier}'")]
 pub struct PackageReqReferenceInvalidParseError {
   pub specifier: String,
@@ -53,7 +57,8 @@ pub struct PackageReqReferenceInvalidParseError {
   pub source: PackageReqPartsParseError,
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
+#[class(type)]
 #[error("Invalid package specifier '{0}{1}'. Did you mean to write '{0}{2}'?", .kind.scheme_with_colon(), current, suggested)]
 pub struct PackageReqReferenceInvalidWithVersionParseError {
   pub kind: PackageKind,
@@ -130,23 +135,29 @@ impl std::fmt::Display for PackageReqReference {
   }
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
 pub enum PackageReqPartsParseError {
+  #[class(type)]
   #[error("Did not contain a package name")]
   NoPackageName,
+  #[class(type)]
   #[error("Did not contain a valid package name")]
   InvalidPackageName,
+  #[class(type)]
   #[error(
     "Packages in the format <scope>/<name> must start with an '@' symbol"
   )]
   MissingAtSymbol,
+  #[class(inherit)]
   #[error(transparent)]
   SpecifierVersionReq(VersionReqSpecifierParseError),
+  #[class(inherit)]
   #[error(transparent)]
   NpmVersionReq(NpmVersionReqParseError),
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, JsError)]
+#[class(type)]
 #[error("Invalid package requirement '{text}'")]
 pub struct PackageReqParseError {
   pub text: String,
@@ -438,7 +449,8 @@ impl Ord for PackageReq {
   }
 }
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error, Clone, JsError)]
+#[class(type)]
 #[error("Invalid package name and version reference '{text}'. {message}")]
 pub struct PackageNvReferenceParseError {
   pub message: String,
@@ -524,7 +536,8 @@ impl std::fmt::Display for PackageNvReference {
   }
 }
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error, Clone, JsError)]
+#[class(type)]
 #[error("Invalid package name and version '{text}'. {message}")]
 pub struct PackageNvParseError {
   pub message: String,
