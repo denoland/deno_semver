@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "deno_semver"
-version = "0.5.16"
+version = "0.6.0"
 dependencies = [
  "deno_error",
  "monch",
