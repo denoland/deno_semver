@@ -262,6 +262,8 @@ impl JsrDepPackageReq {
 
 #[cfg(test)]
 mod test {
+  use crate::package::PackageReqReferenceInvalidWithVersionParseError;
+
   use super::*;
 
   #[test]
@@ -289,6 +291,18 @@ mod test {
       assert_eq!(req_ref.req().name, "@scope/foo");
       assert_eq!(req_ref.req().version_req.to_string(), "^1.0.0");
       assert_eq!(req_ref.sub_path(), Some("mod.ts"));
+    }
+    {
+      assert_eq!(
+        JsrPackageReqReference::from_str("jsr:@std/testing/bdd@1").unwrap_err(),
+        PackageReqReferenceParseError::InvalidPathWithVersion(Box::new(
+          PackageReqReferenceInvalidWithVersionParseError {
+            kind: PackageKind::Jsr,
+            current: "@std/testing/bdd@1".to_string(),
+            suggested: "@std/testing@1/bdd".to_string(),
+          }
+        )),
+      );
     }
   }
 

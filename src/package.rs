@@ -35,7 +35,7 @@ impl PackageKind {
   }
 }
 
-#[derive(Error, Debug, Clone, JsError)]
+#[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 pub enum PackageReqReferenceParseError {
   #[class(type)]
   #[error("Not {} specifier", .0.scheme_with_colon())]
@@ -48,7 +48,7 @@ pub enum PackageReqReferenceParseError {
   InvalidPathWithVersion(Box<PackageReqReferenceInvalidWithVersionParseError>),
 }
 
-#[derive(Error, Debug, Clone, JsError)]
+#[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 #[class(type)]
 #[error("Invalid package specifier '{specifier}'")]
 pub struct PackageReqReferenceInvalidParseError {
@@ -57,9 +57,9 @@ pub struct PackageReqReferenceInvalidParseError {
   pub source: PackageReqPartsParseError,
 }
 
-#[derive(Error, Debug, Clone, JsError)]
+#[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 #[class(type)]
-#[error("Invalid package specifier '{0}{1}'. Did you mean to write '{0}{2}'?", .kind.scheme_with_colon(), current, suggested)]
+#[error("Invalid package specifier '{0}{1}'. Did you mean to write '{0}{2}'? If not, add a version requirement to the specifier.", .kind.scheme_with_colon(), current, suggested)]
 pub struct PackageReqReferenceInvalidWithVersionParseError {
   pub kind: PackageKind,
   pub current: String,
@@ -109,15 +109,17 @@ impl PackageReqReference {
     };
 
     if let Some(sub_path) = &sub_path {
-      if let Some(at_index) = sub_path.rfind('@') {
-        let (new_sub_path, version) = sub_path.split_at(at_index);
-        return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
-          Box::new(PackageReqReferenceInvalidWithVersionParseError {
-            kind,
-            current: format!("{req}/{sub_path}"),
-            suggested: format!("{req}{version}/{new_sub_path}"),
-          }),
-        ));
+      if req.version_req.version_text() == "*" {
+        if let Some(at_index) = sub_path.rfind('@') {
+          let (new_sub_path, version) = sub_path.split_at(at_index);
+          return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
+            Box::new(PackageReqReferenceInvalidWithVersionParseError {
+              kind,
+              current: format!("{req}/{sub_path}"),
+              suggested: format!("{req}{version}/{new_sub_path}"),
+            }),
+          ));
+        }
       }
     }
 
@@ -135,7 +137,7 @@ impl std::fmt::Display for PackageReqReference {
   }
 }
 
-#[derive(Error, Debug, Clone, JsError)]
+#[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 pub enum PackageReqPartsParseError {
   #[class(type)]
   #[error("Did not contain a package name")]
