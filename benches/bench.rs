@@ -6,7 +6,7 @@ fn main() {
 mod package_req {
   use deno_semver::package::PackageReq;
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn from_str_loose() -> usize {
     PackageReq::from_str_loose("@deno/std@0.100.0")
       .unwrap()
@@ -14,7 +14,7 @@ mod package_req {
       .len()
   }
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string_normalized() -> usize {
     PackageReq::from_str_loose("@deno/std@0.100.0")
       .unwrap()
@@ -26,12 +26,12 @@ mod package_req {
 mod version {
   use deno_semver::Version;
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string() -> usize {
     version().to_string().len()
   }
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string_display() -> usize {
     format!("{}", version()).len()
   }
@@ -44,17 +44,17 @@ mod version {
 mod version_req {
   use deno_semver::VersionReq;
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string() -> usize {
     version_req().to_string().len()
   }
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string_display() -> usize {
     format!("{}", version_req()).len()
   }
 
-  #[divan::bench]
+  #[divan::bench(sample_size = 1000)]
   fn to_string_normalized() -> usize {
     version_req().to_string_normalized().len()
   }
