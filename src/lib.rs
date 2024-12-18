@@ -88,8 +88,9 @@ impl Version {
   }
 
   /// Gets the version as a string.
-  #[allow(clippy::inherent_to_string_shadow_display)] // ok because this to_string() is about 20% faster than the Display impl
+  #[allow(clippy::inherent_to_string_shadow_display)]
   pub fn to_string(&self) -> String {
+    // faster to_string() that sets the capacity
     StringBuilder::build(|builder| {
       build_version_to_string(self, builder);
     })
