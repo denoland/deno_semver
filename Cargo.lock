@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "deno_semver"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "capacity_builder",
  "deno_error",

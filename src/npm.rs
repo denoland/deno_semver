@@ -86,7 +86,7 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
   .map_err(|err| NpmVersionParseError { source: err })
 }
 
-#[derive(Error, Debug, Clone, JsError)]
+#[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 #[class(type)]
 #[error("Invalid version requirement")]
 pub struct NpmVersionReqParseError {
@@ -1384,6 +1384,20 @@ mod tests {
       )),
       _ => unreachable!(),
     }
+
+    // path with `@` shouldn't error
+    assert_eq!(
+      NpmPackageReqReference::from_str("npm:package@^5.0.0-beta.35/@some/path")
+        .unwrap(),
+      NpmPackageReqReference::new(PackageReqReference {
+        req: PackageReq {
+          name: "package".to_string(),
+          version_req: VersionReq::parse_from_specifier("^5.0.0-beta.35")
+            .unwrap(),
+        },
+        sub_path: Some("@some/path".to_string()),
+      }),
+    );
   }
 
   #[test]
