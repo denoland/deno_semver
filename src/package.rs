@@ -81,12 +81,10 @@ pub struct PackageReqReference {
 
 impl StringBuildable for PackageReqReference {
   fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+    builder.append(&self.req);
     if let Some(sub_path) = &self.sub_path {
-      builder.append(&self.req);
       builder.append('/');
       builder.append(sub_path);
-    } else {
-      builder.append(&self.req);
     }
   }
 }
@@ -542,12 +540,10 @@ impl PackageNvReference {
 
 impl StringBuildable for PackageNvReference {
   fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+    builder.append(&self.nv);
     if let Some(sub_path) = &self.sub_path {
-      builder.append(&self.nv);
       builder.append('/');
       builder.append(sub_path);
-    } else {
-      builder.append(&self.nv);
     }
   }
 }
