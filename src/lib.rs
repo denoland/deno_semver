@@ -90,13 +90,21 @@ impl Version {
   #[allow(clippy::inherent_to_string_shadow_display)] // ok because this to_string() is about 20% faster than the Display impl
   pub fn to_string(&self) -> String {
     capacity_builder::StringBuilder::build(|builder| {
-      build_to_string(self, builder);
+      build_version_to_string(self, builder);
     })
     .unwrap()
   }
 }
 
-fn build_to_string<'a>(
+impl fmt::Display for Version {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    capacity_builder::StringBuilder::fmt(f, |builder| {
+      build_version_to_string(self, builder);
+    })
+  }
+}
+
+fn build_version_to_string<'a>(
   version: &'a Version,
   builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
 ) {
@@ -122,14 +130,6 @@ fn build_to_string<'a>(
       }
       builder.append(part);
     }
-  }
-}
-
-impl fmt::Display for Version {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    capacity_builder::StringBuilder::fmt(f, |builder| {
-      build_to_string(self, builder);
-    })
   }
 }
 
