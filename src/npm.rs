@@ -1,5 +1,7 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+use capacity_builder::FastDisplay;
+use capacity_builder::StringBuildable;
 use deno_error::JsError;
 use monch::*;
 use thiserror::Error;
@@ -477,12 +479,16 @@ fn part(input: &str) -> ParseResult<&str> {
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct NpmPackageReqReference(PackageReqReference);
 
-impl std::fmt::Display for NpmPackageReqReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "npm:{}", self.0)
+impl StringBuildable for NpmPackageReqReference {
+  fn string_build_with<'a>(
+    &'a self,
+    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  ) {
+    builder.append("npm:");
+    builder.append(&self.0);
   }
 }
 
@@ -521,7 +527,7 @@ impl NpmPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
 pub struct NpmPackageNvReference(PackageNvReference);
 
 impl NpmPackageNvReference {
@@ -557,9 +563,13 @@ impl NpmPackageNvReference {
   }
 }
 
-impl std::fmt::Display for NpmPackageNvReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "npm:{}", self.0)
+impl StringBuildable for NpmPackageNvReference {
+  fn string_build_with<'a>(
+    &'a self,
+    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  ) {
+    builder.append("npm:");
+    builder.append(&self.0);
   }
 }
 

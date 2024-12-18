@@ -2,6 +2,8 @@
 
 use std::borrow::Cow;
 
+use capacity_builder::FastDisplay;
+use capacity_builder::StringBuildable;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
@@ -21,12 +23,16 @@ use crate::package::PackageReqReferenceParseError;
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct JsrPackageReqReference(PackageReqReference);
 
-impl std::fmt::Display for JsrPackageReqReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "jsr:{}", self.0)
+impl StringBuildable for JsrPackageReqReference {
+  fn string_build_with<'a>(
+    &'a self,
+    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  ) {
+    builder.append("jsr:");
+    builder.append(&self.0);
   }
 }
 
@@ -70,7 +76,7 @@ impl JsrPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
 pub struct JsrPackageNvReference(PackageNvReference);
 
 impl JsrPackageNvReference {
@@ -111,9 +117,13 @@ impl JsrPackageNvReference {
   }
 }
 
-impl std::fmt::Display for JsrPackageNvReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "jsr:{}", self.0)
+impl StringBuildable for JsrPackageNvReference {
+  fn string_build_with<'a>(
+    &'a self,
+    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  ) {
+    builder.append("jsr:");
+    builder.append(&self.0);
   }
 }
 
@@ -167,15 +177,19 @@ pub enum JsrDepPackageReqParseError {
 }
 
 /// A package constraint for a JSR dependency which could be from npm or JSR.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FastDisplay)]
 pub struct JsrDepPackageReq {
   pub kind: PackageKind,
   pub req: PackageReq,
 }
 
-impl std::fmt::Display for JsrDepPackageReq {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}{}", self.kind.scheme_with_colon(), self.req)
+impl StringBuildable for JsrDepPackageReq {
+  fn string_build_with<'a>(
+    &'a self,
+    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  ) {
+    builder.append(self.kind.scheme_with_colon());
+    builder.append(&self.req);
   }
 }
 

@@ -2,31 +2,19 @@
 
 use std::cmp::Ordering;
 
+use capacity_builder::FastDisplay;
+use capacity_builder::StringBuildable;
+use capacity_builder::StringBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::Version;
 
 /// Collection of ranges.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+)]
 pub struct VersionRangeSet(pub Vec<VersionRange>);
-
-impl std::fmt::Display for VersionRangeSet {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self.0.len() {
-      0 => write!(f, "*"),
-      _ => {
-        for (i, range) in self.0.iter().enumerate() {
-          if i > 0 {
-            write!(f, " || ")?;
-          }
-          write!(f, "{}", range)?;
-        }
-        Ok(())
-      }
-    }
-  }
-}
 
 impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
@@ -39,6 +27,22 @@ impl VersionRangeSet {
       .0
       .iter()
       .any(|a| other.0.iter().any(|b| a.intersects_range(b)))
+  }
+}
+
+impl StringBuildable for VersionRangeSet {
+  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+    match self.0.len() {
+      0 => builder.append('*'),
+      _ => {
+        for (i, range) in self.0.iter().enumerate() {
+          if i > 0 {
+            builder.append(" || ");
+          }
+          builder.append(range);
+        }
+      }
+    }
   }
 }
 
@@ -137,14 +141,16 @@ impl VersionBound {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+)]
 pub struct VersionRange {
   pub start: RangeBound,
   pub end: RangeBound,
 }
 
-impl std::fmt::Display for VersionRange {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl StringBuildable for VersionRange {
+  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
     fn matches_tilde(start: &Version, end: &Version) -> bool {
       if !end.build.is_empty() || !end.pre.is_empty() {
         return false;
@@ -199,25 +205,41 @@ impl std::fmt::Display for VersionRange {
 
     match &self.start {
       RangeBound::Unbounded => match &self.end {
-        RangeBound::Unbounded => write!(f, "*"),
+        RangeBound::Unbounded => builder.append('*'),
         RangeBound::Version(end) => match end.kind {
-          VersionBoundKind::Inclusive => write!(f, "<={}", end.version),
-          VersionBoundKind::Exclusive => write!(f, "<{}", end.version),
+          VersionBoundKind::Inclusive => {
+            builder.append("<=");
+            builder.append(&end.version);
+          }
+          VersionBoundKind::Exclusive => {
+            builder.append('<');
+            builder.append(&end.version);
+          }
         },
       },
       RangeBound::Version(start) => match &self.end {
         RangeBound::Unbounded => match start.kind {
-          VersionBoundKind::Inclusive => write!(f, ">={}", start.version),
-          VersionBoundKind::Exclusive => write!(f, ">{}", start.version),
+          VersionBoundKind::Inclusive => {
+            builder.append(">=");
+            builder.append(&start.version);
+          }
+          VersionBoundKind::Exclusive => {
+            builder.append('>');
+            builder.append(&start.version);
+          }
         },
         RangeBound::Version(end) => match (start.kind, end.kind) {
           (VersionBoundKind::Inclusive, VersionBoundKind::Inclusive) => {
             if start.version == end.version {
-              write!(f, "{}", start.version)
+              builder.append(&start.version);
             } else if is_zero_version(&start.version) {
-              write!(f, "<={}", end.version)
+              builder.append("<=");
+              builder.append(&end.version);
             } else {
-              write!(f, ">={} <={}", start.version, end.version)
+              builder.append(">=");
+              builder.append(&start.version);
+              builder.append(" <=");
+              builder.append(&end.version);
             }
           }
           (VersionBoundKind::Inclusive, VersionBoundKind::Exclusive) => {
@@ -234,7 +256,8 @@ impl std::fmt::Display for VersionRange {
                   start.version.major.checked_add(1)
                 {
                   if end.version.major == one_major_higher {
-                    return write!(f, "{}", start.version.major);
+                    builder.append(start.version.major);
+                    return;
                   }
                 }
               } else if start.version.major == end.version.major {
@@ -243,31 +266,42 @@ impl std::fmt::Display for VersionRange {
                   start.version.minor.checked_add(1)
                 {
                   if end.version.minor == one_minor_higher {
-                    return write!(
-                      f,
-                      "{}.{}",
-                      start.version.major, start.version.minor
-                    );
+                    builder.append(start.version.major);
+                    builder.append('.');
+                    builder.append(start.version.minor);
+                    return;
                   }
                 }
               }
             }
 
             if matches_tilde(&start.version, &end.version) {
-              write!(f, "~{}", start.version)
+              builder.append('~');
+              builder.append(&start.version);
             } else if matches_caret(&start.version, &end.version) {
-              write!(f, "^{}", start.version)
+              builder.append('^');
+              builder.append(&start.version);
             } else if is_zero_version(&start.version) {
-              write!(f, "<{}", end.version)
+              builder.append('<');
+              builder.append(&end.version);
             } else {
-              write!(f, ">={} <{}", start.version, end.version)
+              builder.append(">=");
+              builder.append(&start.version);
+              builder.append(" <");
+              builder.append(&end.version);
             }
           }
           (VersionBoundKind::Exclusive, VersionBoundKind::Inclusive) => {
-            write!(f, ">{} <={}", start.version, end.version)
+            builder.append('>');
+            builder.append(&start.version);
+            builder.append(" <=");
+            builder.append(&end.version);
           }
           (VersionBoundKind::Exclusive, VersionBoundKind::Exclusive) => {
-            write!(f, ">{} <{}", start.version, end.version)
+            builder.append('>');
+            builder.append(&start.version);
+            builder.append(" <");
+            builder.append(&end.version);
           }
         },
       },
