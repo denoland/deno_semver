@@ -8,14 +8,10 @@ mod package_req {
 
   #[divan::bench]
   fn from_str_loose() -> usize {
-    let mut i = 0;
-    for _ in 0..1000 {
-      i += PackageReq::from_str_loose("@deno/std@0.100.0")
-        .unwrap()
-        .name
-        .len();
-    }
-    i
+    PackageReq::from_str_loose("@deno/std@0.100.0")
+      .unwrap()
+      .name
+      .len()
   }
 }
 
