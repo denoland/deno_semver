@@ -85,30 +85,51 @@ impl Version {
   ) -> Result<Version, npm::NpmVersionParseError> {
     npm::parse_npm_version(text)
   }
+
+  /// Gets the version as a string.
+  #[allow(clippy::inherent_to_string_shadow_display)] // ok because this to_string() is about 20% faster than the Display impl
+  pub fn to_string(&self) -> String {
+    capacity_builder::StringBuilder::build(|builder| {
+      build_to_string(self, builder);
+    })
+    .unwrap()
+  }
+}
+
+fn build_to_string<'a>(
+  version: &'a Version,
+  builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+) {
+  builder.append(version.major);
+  builder.append('.');
+  builder.append(version.minor);
+  builder.append('.');
+  builder.append(version.patch);
+  if !version.pre.is_empty() {
+    builder.append('-');
+    for (i, part) in version.pre.iter().enumerate() {
+      if i > 0 {
+        builder.append('.');
+      }
+      builder.append(part);
+    }
+  }
+  if !version.build.is_empty() {
+    builder.append('+');
+    for (i, part) in version.build.iter().enumerate() {
+      if i > 0 {
+        builder.append('.');
+      }
+      builder.append(part);
+    }
+  }
 }
 
 impl fmt::Display for Version {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
-    if !self.pre.is_empty() {
-      write!(f, "-")?;
-      for (i, part) in self.pre.iter().enumerate() {
-        if i > 0 {
-          write!(f, ".")?;
-        }
-        write!(f, "{part}")?;
-      }
-    }
-    if !self.build.is_empty() {
-      write!(f, "+")?;
-      for (i, part) in self.build.iter().enumerate() {
-        if i > 0 {
-          write!(f, ".")?;
-        }
-        write!(f, "{part}")?;
-      }
-    }
-    Ok(())
+    capacity_builder::StringBuilder::fmt(f, |builder| {
+      build_to_string(self, builder);
+    })
   }
 }
 
