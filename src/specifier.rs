@@ -8,6 +8,7 @@ use crate::range::VersionRange;
 use crate::range::VersionRangeSet;
 use crate::range::XRange;
 use crate::RangeSetOrTag;
+use crate::SmallStackString;
 use crate::VersionReq;
 
 use crate::is_valid_tag;
@@ -33,12 +34,12 @@ pub fn parse_version_req_from_specifier(
       Ok((
         new_input,
         VersionReq::from_raw_text_and_inner(
-          input.to_string(),
+          input.into(),
           match range_result {
             Ok(range) => RangeSetOrTag::RangeSet(VersionRangeSet(vec![range])),
             Err(err) => {
               if is_valid_tag(input) {
-                RangeSetOrTag::Tag(input.to_string())
+                RangeSetOrTag::Tag(input.into())
               } else if input.trim().is_empty() {
                 return ParseError::fail(input, "Empty version constraint.");
               } else {
@@ -131,8 +132,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: Vec<String>,
-  build: Vec<String>,
+  pre: Vec<SmallStackString>,
+  build: Vec<SmallStackString>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -149,19 +150,19 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<Vec<String>> {
+fn pre(input: &str) -> ParseResult<Vec<SmallStackString>> {
   preceded(ch('-'), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<Vec<String>> {
+fn build(input: &str) -> ParseResult<Vec<SmallStackString>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<Vec<String>> {
+fn parts(input: &str) -> ParseResult<Vec<SmallStackString>> {
   if_not_empty(map(separated_list(part, ch('.')), |text| {
-    text.into_iter().map(ToOwned::to_owned).collect()
+    text.into_iter().map(SmallStackString::from).collect()
   }))(input)
 }
 

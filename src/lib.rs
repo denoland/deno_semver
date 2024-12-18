@@ -3,6 +3,7 @@
 #![deny(clippy::print_stderr)]
 #![deny(clippy::print_stdout)]
 
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
@@ -21,6 +22,11 @@ pub mod npm;
 pub mod package;
 mod range;
 mod specifier;
+
+/// A 16 byte string that uses the stack when < 16 bytes.
+pub type SmallStackString = ecow::EcoString;
+/// A 24 byte string that uses the stack when < 24 bytes.
+pub type StackString = hipstr::HipStr<'static>;
 
 pub use self::specifier::VersionReqSpecifierParseError;
 
@@ -49,8 +55,8 @@ pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
-  pub pre: Vec<String>,
-  pub build: Vec<String>,
+  pub pre: Vec<SmallStackString>,
+  pub build: Vec<SmallStackString>,
 }
 
 impl<'a> StringAppendable<'a> for &'a Version {
@@ -98,7 +104,7 @@ impl<'de> Deserialize<'de> for Version {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Version::parse_standard(&text) {
       Ok(version) => Ok(version),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -202,7 +208,7 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
 )]
 pub enum RangeSetOrTag {
   RangeSet(VersionRangeSet),
-  Tag(String),
+  Tag(SmallStackString),
 }
 
 impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
@@ -233,7 +239,7 @@ impl RangeSetOrTag {
 /// A version constraint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionReq {
-  raw_text: String,
+  raw_text: SmallStackString,
   inner: RangeSetOrTag,
 }
 
@@ -254,7 +260,7 @@ impl Hash for VersionReq {
 impl VersionReq {
   /// Creates a version requirement without examining the raw text.
   pub fn from_raw_text_and_inner(
-    raw_text: String,
+    raw_text: SmallStackString,
     inner: RangeSetOrTag,
   ) -> Self {
     Self { raw_text, inner }

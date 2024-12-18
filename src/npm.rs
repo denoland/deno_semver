@@ -1,5 +1,7 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+use std::borrow::Cow;
+
 use capacity_builder::FastDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
@@ -18,6 +20,7 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
+use crate::SmallStackString;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -101,7 +104,7 @@ pub fn parse_npm_version_req(
   let text = text.trim();
   with_failure_handling(|input| {
     map(inner, |inner| {
-      VersionReq::from_raw_text_and_inner(input.to_string(), inner)
+      VersionReq::from_raw_text_and_inner(input.into(), inner)
     })(input)
   })(text)
   .map_err(|err| NpmVersionReqParseError { source: err })
@@ -141,7 +144,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
     match ranges.remove(0) {
       RangeOrInvalid::Invalid(invalid) => {
         if is_valid_npm_tag(invalid.text) {
-          return Ok((input, RangeSetOrTag::Tag(invalid.text.to_string())));
+          return Ok((input, RangeSetOrTag::Tag(invalid.text.into())));
         } else {
           return Err(invalid.failure);
         }
@@ -165,7 +168,7 @@ enum RangeOrInvalid<'a> {
   Invalid(InvalidRange<'a>),
 }
 
-impl<'a> RangeOrInvalid<'a> {
+impl RangeOrInvalid<'_> {
   pub fn into_range(self) -> Option<VersionRange> {
     match self {
       RangeOrInvalid::Range(r) => {
@@ -432,8 +435,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: Vec<String>,
-  build: Vec<String>,
+  pre: Vec<SmallStackString>,
+  build: Vec<SmallStackString>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -450,19 +453,19 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<Vec<String>> {
+fn pre(input: &str) -> ParseResult<Vec<SmallStackString>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<Vec<String>> {
+fn build(input: &str) -> ParseResult<Vec<SmallStackString>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<Vec<String>> {
+fn parts(input: &str) -> ParseResult<Vec<SmallStackString>> {
   if_not_empty(map(separated_list(part, ch('.')), |text| {
-    text.into_iter().map(ToOwned::to_owned).collect()
+    text.into_iter().map(SmallStackString::from).collect()
   }))(input)
 }
 
@@ -588,7 +591,7 @@ impl<'de> Deserialize<'de> for NpmPackageNvReference {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Self::from_str(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -1232,7 +1235,7 @@ mod tests {
       NpmPackageReqReference::from_str("npm:@package/test").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
@@ -1243,7 +1246,7 @@ mod tests {
       NpmPackageReqReference::from_str("npm:@package/test@1").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: VersionReq::parse_from_specifier("1").unwrap(),
         },
         sub_path: None,
@@ -1255,10 +1258,10 @@ mod tests {
         .unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
-        sub_path: Some("sub_path".to_string()),
+        sub_path: Some("sub_path".into()),
       })
     );
 
@@ -1266,10 +1269,10 @@ mod tests {
       NpmPackageReqReference::from_str("npm:@package/test/sub_path").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
-        sub_path: Some("sub_path".to_string()),
+        sub_path: Some("sub_path".into()),
       })
     );
 
@@ -1277,7 +1280,7 @@ mod tests {
       NpmPackageReqReference::from_str("npm:test").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "test".to_string(),
+          name: "test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
@@ -1288,7 +1291,7 @@ mod tests {
       NpmPackageReqReference::from_str("npm:test@^1.2").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "test".to_string(),
+          name: "test".into(),
           version_req: VersionReq::parse_from_specifier("^1.2").unwrap(),
         },
         sub_path: None,
@@ -1299,10 +1302,10 @@ mod tests {
       NpmPackageReqReference::from_str("npm:test@~1.1/sub_path").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "test".to_string(),
+          name: "test".into(),
           version_req: VersionReq::parse_from_specifier("~1.1").unwrap(),
         },
-        sub_path: Some("sub_path".to_string()),
+        sub_path: Some("sub_path".into()),
       })
     );
 
@@ -1310,10 +1313,10 @@ mod tests {
       NpmPackageReqReference::from_str("npm:@package/test/sub_path").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
-        sub_path: Some("sub_path".to_string()),
+        sub_path: Some("sub_path".into()),
       })
     );
 
@@ -1343,17 +1346,17 @@ mod tests {
       NpmPackageReqReference::from_str("npm:/@package/test/sub_path").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "@package/test".to_string(),
+          name: "@package/test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
-        sub_path: Some("sub_path".to_string()),
+        sub_path: Some("sub_path".into()),
       })
     );
     assert_eq!(
       NpmPackageReqReference::from_str("npm:/test").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "test".to_string(),
+          name: "test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
@@ -1363,7 +1366,7 @@ mod tests {
       NpmPackageReqReference::from_str("npm:/test/").unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "test".to_string(),
+          name: "test".into(),
           version_req: WILDCARD_VERSION_REQ.clone(),
         },
         sub_path: None,
@@ -1392,11 +1395,11 @@ mod tests {
         .unwrap(),
       NpmPackageReqReference::new(PackageReqReference {
         req: PackageReq {
-          name: "package".to_string(),
+          name: "package".into(),
           version_req: VersionReq::parse_from_specifier("^5.0.0-beta.35")
             .unwrap(),
         },
-        sub_path: Some("@some/path".to_string()),
+        sub_path: Some("@some/path".into()),
       }),
     );
   }
@@ -1409,10 +1412,10 @@ mod tests {
       package_nv_ref,
       NpmPackageNvReference(PackageNvReference {
         nv: PackageNv {
-          name: "package".to_string(),
+          name: "package".into(),
           version: Version::parse_from_npm("1.2.3").unwrap(),
         },
-        sub_path: Some("test".to_string())
+        sub_path: Some("test".into())
       })
     );
     assert_eq!(
@@ -1427,7 +1430,7 @@ mod tests {
       package_nv_ref,
       NpmPackageNvReference(PackageNvReference {
         nv: PackageNv {
-          name: "package".to_string(),
+          name: "package".into(),
           version: Version::parse_from_npm("1.2.3").unwrap(),
         },
         sub_path: None

@@ -9,6 +9,8 @@ use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::SmallStackString;
+
 use super::Version;
 
 /// Collection of ranges.
@@ -508,8 +510,8 @@ pub struct Partial {
   pub major: XRange,
   pub minor: XRange,
   pub patch: XRange,
-  pub pre: Vec<String>,
-  pub build: Vec<String>,
+  pub pre: Vec<SmallStackString>,
+  pub build: Vec<SmallStackString>,
 }
 
 impl Partial {
