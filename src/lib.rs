@@ -7,6 +7,10 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
+use capacity_builder::FastDisplay;
+use capacity_builder::StringAppendable;
+use capacity_builder::StringBuilder;
+use capacity_builder::StringType;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -40,13 +44,44 @@ pub struct VersionParseError {
   source: monch::ParseErrorFailureError,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, FastDisplay)]
 pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
   pub pre: Vec<String>,
   pub build: Vec<String>,
+}
+
+impl<'a> StringAppendable<'a> for &'a Version {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
+    builder.append(self.major);
+    builder.append('.');
+    builder.append(self.minor);
+    builder.append('.');
+    builder.append(self.patch);
+    if !self.pre.is_empty() {
+      builder.append('-');
+      for (i, part) in self.pre.iter().enumerate() {
+        if i > 0 {
+          builder.append('.');
+        }
+        builder.append(part);
+      }
+    }
+    if !self.build.is_empty() {
+      builder.append('+');
+      for (i, part) in self.build.iter().enumerate() {
+        if i > 0 {
+          builder.append('.');
+        }
+        builder.append(part);
+      }
+    }
+  }
 }
 
 impl Serialize for Version {
@@ -84,31 +119,6 @@ impl Version {
     text: &str,
   ) -> Result<Version, npm::NpmVersionParseError> {
     npm::parse_npm_version(text)
-  }
-}
-
-impl fmt::Display for Version {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
-    if !self.pre.is_empty() {
-      write!(f, "-")?;
-      for (i, part) in self.pre.iter().enumerate() {
-        if i > 0 {
-          write!(f, ".")?;
-        }
-        write!(f, "{part}")?;
-      }
-    }
-    if !self.build.is_empty() {
-      write!(f, "+")?;
-      for (i, part) in self.build.iter().enumerate() {
-        if i > 0 {
-          write!(f, ".")?;
-        }
-        write!(f, "{part}")?;
-      }
-    }
-    Ok(())
   }
 }
 
@@ -187,17 +197,22 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
   npm::is_valid_npm_tag(value)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+)]
 pub enum RangeSetOrTag {
   RangeSet(VersionRangeSet),
   Tag(String),
 }
 
-impl std::fmt::Display for RangeSetOrTag {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     match self {
-      RangeSetOrTag::RangeSet(range_set) => write!(f, "{}", range_set),
-      RangeSetOrTag::Tag(tag) => write!(f, "{}", tag),
+      RangeSetOrTag::RangeSet(range_set) => builder.append(range_set),
+      RangeSetOrTag::Tag(tag) => builder.append(tag),
     }
   }
 }
@@ -297,7 +312,7 @@ impl VersionReq {
 
   /// Outputs a normalized string representation of the version requirement.
   pub fn to_string_normalized(&self) -> String {
-    format!("{}", self.inner())
+    self.inner().to_string()
   }
 }
 

@@ -1,5 +1,9 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
+use capacity_builder::FastDisplay;
+use capacity_builder::StringAppendable;
+use capacity_builder::StringBuilder;
+use capacity_builder::StringType;
 use deno_error::JsError;
 use monch::ParseErrorFailure;
 use serde::Deserialize;
@@ -70,10 +74,23 @@ pub struct PackageReqReferenceInvalidWithVersionParseError {
 ///
 /// This contains all the information found in a package specifier other than
 /// what kind of package specifier it was.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct PackageReqReference {
   pub req: PackageReq,
   pub sub_path: Option<String>,
+}
+
+impl<'a> StringAppendable<'a> for &'a PackageReqReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
+    builder.append(&self.req);
+    if let Some(sub_path) = &self.sub_path {
+      builder.append('/');
+      builder.append(sub_path);
+    }
+  }
 }
 
 impl PackageReqReference {
@@ -127,16 +144,6 @@ impl PackageReqReference {
   }
 }
 
-impl std::fmt::Display for PackageReqReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    if let Some(sub_path) = &self.sub_path {
-      write!(f, "{}/{}", self.req, sub_path)
-    } else {
-      write!(f, "{}", self.req)
-    }
-  }
-}
-
 #[derive(Error, Debug, Clone, JsError, PartialEq, Eq)]
 pub enum PackageReqPartsParseError {
   #[class(type)]
@@ -168,19 +175,24 @@ pub struct PackageReqParseError {
 }
 
 /// The name and version constraint component of an `PackageReqReference`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct PackageReq {
   pub name: String,
   pub version_req: VersionReq,
 }
 
-impl std::fmt::Display for PackageReq {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a> StringAppendable<'a> for &'a PackageReq {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     if self.version_req.version_text() == "*" {
       // do not write out the version requirement when it's the wildcard version
-      write!(f, "{}", self.name)
+      builder.append(&self.name);
     } else {
-      write!(f, "{}@{}", self.name, self.version_req)
+      builder.append(&self.name);
+      builder.append('@');
+      builder.append(&self.version_req.raw_text);
     }
   }
 }
@@ -305,7 +317,12 @@ impl PackageReq {
 
   /// Outputs a normalized string representation of the package requirement.
   pub fn to_string_normalized(&self) -> String {
-    format!("{}@{}", self.name, self.version_req.inner())
+    StringBuilder::build(|builder| {
+      builder.append(&self.name);
+      builder.append('@');
+      builder.append(self.version_req.inner());
+    })
+    .unwrap()
   }
 }
 
@@ -460,7 +477,7 @@ pub struct PackageNvReferenceParseError {
 }
 
 /// A package name and version with a potential subpath.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
 pub struct PackageNvReference {
   pub nv: PackageNv,
   pub sub_path: Option<String>,
@@ -528,12 +545,15 @@ impl PackageNvReference {
   }
 }
 
-impl std::fmt::Display for PackageNvReference {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a> StringAppendable<'a> for &'a PackageNvReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
+    builder.append(&self.nv);
     if let Some(sub_path) = &self.sub_path {
-      write!(f, "{}/{}", self.nv, sub_path)
-    } else {
-      write!(f, "{}", self.nv)
+      builder.append('/');
+      builder.append(sub_path);
     }
   }
 }
@@ -546,7 +566,7 @@ pub struct PackageNvParseError {
   pub text: String,
 }
 
-#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
 pub struct PackageNv {
   pub name: String,
   pub version: Version,
@@ -559,9 +579,14 @@ impl std::fmt::Debug for PackageNv {
   }
 }
 
-impl std::fmt::Display for PackageNv {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}@{}", self.name, self.version)
+impl<'a> StringAppendable<'a> for &'a PackageNv {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
+    builder.append(&self.name);
+    builder.append('@');
+    builder.append(&self.version);
   }
 }
 
