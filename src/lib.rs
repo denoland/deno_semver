@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
+use capacity_builder::StringBuilder;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -89,7 +90,7 @@ impl Version {
   /// Gets the version as a string.
   #[allow(clippy::inherent_to_string_shadow_display)] // ok because this to_string() is about 20% faster than the Display impl
   pub fn to_string(&self) -> String {
-    capacity_builder::StringBuilder::build(|builder| {
+    StringBuilder::build(|builder| {
       build_version_to_string(self, builder);
     })
     .unwrap()
@@ -98,7 +99,7 @@ impl Version {
 
 impl fmt::Display for Version {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    capacity_builder::StringBuilder::fmt(f, |builder| {
+    StringBuilder::fmt(f, |builder| {
       build_version_to_string(self, builder);
     })
   }
@@ -106,7 +107,7 @@ impl fmt::Display for Version {
 
 fn build_version_to_string<'a>(
   version: &'a Version,
-  builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+  builder: &mut StringBuilder<'a, '_, '_>,
 ) {
   builder.append(version.major);
   builder.append('.');
