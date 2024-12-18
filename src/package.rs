@@ -1,8 +1,9 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
 use capacity_builder::FastDisplay;
-use capacity_builder::StringBuildable;
+use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
+use capacity_builder::StringType;
 use deno_error::JsError;
 use monch::ParseErrorFailure;
 use serde::Deserialize;
@@ -79,8 +80,11 @@ pub struct PackageReqReference {
   pub sub_path: Option<String>,
 }
 
-impl StringBuildable for PackageReqReference {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a PackageReqReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     builder.append(&self.req);
     if let Some(sub_path) = &self.sub_path {
       builder.append('/');
@@ -177,8 +181,11 @@ pub struct PackageReq {
   pub version_req: VersionReq,
 }
 
-impl StringBuildable for PackageReq {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a PackageReq {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     if self.version_req.version_text() == "*" {
       // do not write out the version requirement when it's the wildcard version
       builder.append(&self.name);
@@ -538,8 +545,11 @@ impl PackageNvReference {
   }
 }
 
-impl StringBuildable for PackageNvReference {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a PackageNvReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     builder.append(&self.nv);
     if let Some(sub_path) = &self.sub_path {
       builder.append('/');
@@ -569,8 +579,11 @@ impl std::fmt::Debug for PackageNv {
   }
 }
 
-impl StringBuildable for PackageNv {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a PackageNv {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     builder.append(&self.name);
     builder.append('@');
     builder.append(&self.version);

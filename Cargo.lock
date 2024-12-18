@@ -22,9 +22,9 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "capacity_builder"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d759563e38c54ef07fa47d93db5729b451f8e5c76538ee5fb62f207e5b4179f"
+checksum = "ce888dfaf957dffaf91540884fdd0800d9fea206dc8bc3225745823ef3fe7856"
 dependencies = [
  "capacity_builder_macros",
  "itoa",
@@ -32,9 +32,9 @@ dependencies = [
 
 [[package]]
 name = "capacity_builder_macros"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d745a193ed4862a962a219ea70e845c2a72dbdeaaac2995bb1c08dd2b1e7f13"
+checksum = "38d1830f08587cae01ae387d96f2812248128f3d54e1df7fe25579bb5118a110"
 dependencies = [
  "quote",
  "syn 2.0.89",

@@ -3,8 +3,9 @@
 use std::cmp::Ordering;
 
 use capacity_builder::FastDisplay;
-use capacity_builder::StringBuildable;
+use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
+use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -30,8 +31,11 @@ impl VersionRangeSet {
   }
 }
 
-impl StringBuildable for VersionRangeSet {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a VersionRangeSet {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     match self.0.len() {
       0 => builder.append('*'),
       _ => {
@@ -149,8 +153,11 @@ pub struct VersionRange {
   pub end: RangeBound,
 }
 
-impl StringBuildable for VersionRange {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a VersionRange {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     fn matches_tilde(start: &Version, end: &Version) -> bool {
       if !end.build.is_empty() || !end.pre.is_empty() {
         return false;

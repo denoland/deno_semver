@@ -1,7 +1,8 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
 use capacity_builder::FastDisplay;
-use capacity_builder::StringBuildable;
+use capacity_builder::StringAppendable;
+use capacity_builder::StringType;
 use deno_error::JsError;
 use monch::*;
 use thiserror::Error;
@@ -482,10 +483,10 @@ fn part(input: &str) -> ParseResult<&str> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct NpmPackageReqReference(PackageReqReference);
 
-impl StringBuildable for NpmPackageReqReference {
-  fn string_build_with<'a>(
-    &'a self,
-    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+impl<'a> StringAppendable<'a> for &'a NpmPackageReqReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut capacity_builder::StringBuilder<'a, TString>,
   ) {
     builder.append("npm:");
     builder.append(&self.0);
@@ -563,10 +564,10 @@ impl NpmPackageNvReference {
   }
 }
 
-impl StringBuildable for NpmPackageNvReference {
-  fn string_build_with<'a>(
-    &'a self,
-    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+impl<'a> StringAppendable<'a> for &'a NpmPackageNvReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut capacity_builder::StringBuilder<'a, TString>,
   ) {
     builder.append("npm:");
     builder.append(&self.0);

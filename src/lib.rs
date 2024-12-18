@@ -8,8 +8,9 @@ use std::fmt;
 use std::hash::Hash;
 
 use capacity_builder::FastDisplay;
-use capacity_builder::StringBuildable;
+use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
+use capacity_builder::StringType;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
@@ -52,8 +53,11 @@ pub struct Version {
   pub build: Vec<String>,
 }
 
-impl StringBuildable for Version {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a Version {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     builder.append(self.major);
     builder.append('.');
     builder.append(self.minor);
@@ -201,8 +205,11 @@ pub enum RangeSetOrTag {
   Tag(String),
 }
 
-impl StringBuildable for RangeSetOrTag {
-  fn string_build_with<'a>(&'a self, builder: &mut StringBuilder<'a, '_, '_>) {
+impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut StringBuilder<'a, TString>,
+  ) {
     match self {
       RangeSetOrTag::RangeSet(range_set) => builder.append(range_set),
       RangeSetOrTag::Tag(tag) => builder.append(tag),

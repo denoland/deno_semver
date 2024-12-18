@@ -3,7 +3,8 @@
 use std::borrow::Cow;
 
 use capacity_builder::FastDisplay;
-use capacity_builder::StringBuildable;
+use capacity_builder::StringAppendable;
+use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
@@ -26,10 +27,10 @@ use crate::package::PackageReqReferenceParseError;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
 pub struct JsrPackageReqReference(PackageReqReference);
 
-impl StringBuildable for JsrPackageReqReference {
-  fn string_build_with<'a>(
-    &'a self,
-    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+impl<'a> StringAppendable<'a> for &'a JsrPackageReqReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut capacity_builder::StringBuilder<'a, TString>,
   ) {
     builder.append("jsr:");
     builder.append(&self.0);
@@ -117,10 +118,10 @@ impl JsrPackageNvReference {
   }
 }
 
-impl StringBuildable for JsrPackageNvReference {
-  fn string_build_with<'a>(
-    &'a self,
-    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+impl<'a> StringAppendable<'a> for &'a JsrPackageNvReference {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut capacity_builder::StringBuilder<'a, TString>,
   ) {
     builder.append("jsr:");
     builder.append(&self.0);
@@ -183,10 +184,10 @@ pub struct JsrDepPackageReq {
   pub req: PackageReq,
 }
 
-impl StringBuildable for JsrDepPackageReq {
-  fn string_build_with<'a>(
-    &'a self,
-    builder: &mut capacity_builder::StringBuilder<'a, '_, '_>,
+impl<'a> StringAppendable<'a> for &'a JsrDepPackageReq {
+  fn append_to_builder<TString: StringType>(
+    self,
+    builder: &mut capacity_builder::StringBuilder<'a, TString>,
   ) {
     builder.append(self.kind.scheme_with_colon());
     builder.append(&self.req);
