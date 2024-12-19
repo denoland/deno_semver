@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::SmallStackString;
+use crate::SmallVec;
 
 use super::Version;
 
@@ -17,7 +18,7 @@ use super::Version;
 #[derive(
   Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
 )]
-pub struct VersionRangeSet(pub Vec<VersionRange>);
+pub struct VersionRangeSet(pub SmallVec<VersionRange>);
 
 impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
@@ -510,8 +511,8 @@ pub struct Partial {
   pub major: XRange,
   pub minor: XRange,
   pub patch: XRange,
-  pub pre: Vec<SmallStackString>,
-  pub build: Vec<SmallStackString>,
+  pub pre: SmallVec<SmallStackString>,
+  pub build: SmallVec<SmallStackString>,
 }
 
 impl Partial {
@@ -524,15 +525,15 @@ impl Partial {
           major: major + 1,
           minor: 0,
           patch: 0,
-          pre: Vec::new(),
-          build: Vec::new(),
+          pre: Default::default(),
+          build: Default::default(),
         },
         XRange::Val(minor) => Version {
           major,
           minor: minor + 1,
           patch: 0,
-          pre: Vec::new(),
-          build: Vec::new(),
+          pre: Default::default(),
+          build: Default::default(),
         },
       },
     };

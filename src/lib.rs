@@ -23,6 +23,8 @@ pub mod package;
 mod range;
 mod specifier;
 
+/// A smaller two-byte vector.
+pub type SmallVec<T> = ecow::EcoVec<T>;
 /// A 16 byte string that uses the stack when < 16 bytes.
 pub type SmallStackString = ecow::EcoString;
 /// A 24 byte string that uses the stack when < 24 bytes.
@@ -55,8 +57,8 @@ pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
-  pub pre: Vec<SmallStackString>,
-  pub build: Vec<SmallStackString>,
+  pub pre: SmallVec<SmallStackString>,
+  pub build: SmallVec<SmallStackString>,
 }
 
 impl<'a> StringAppendable<'a> for &'a Version {

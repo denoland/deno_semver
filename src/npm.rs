@@ -21,6 +21,7 @@ use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
 use crate::SmallStackString;
+use crate::SmallVec;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -133,7 +134,9 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
   if input.is_empty() {
     return Ok((
       input,
-      RangeSetOrTag::RangeSet(VersionRangeSet(vec![VersionRange::all()])),
+      RangeSetOrTag::RangeSet(VersionRangeSet(SmallVec::from([
+        VersionRange::all(),
+      ]))),
     ));
   }
 
@@ -159,7 +162,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
   let ranges = ranges
     .into_iter()
     .filter_map(|r| r.into_range())
-    .collect::<Vec<_>>();
+    .collect::<SmallVec<_>>();
   Ok((input, RangeSetOrTag::RangeSet(VersionRangeSet(ranges))))
 }
 
@@ -435,8 +438,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: Vec<SmallStackString>,
-  build: Vec<SmallStackString>,
+  pre: SmallVec<SmallStackString>,
+  build: SmallVec<SmallStackString>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -453,20 +456,26 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<Vec<SmallStackString>> {
+fn pre(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<Vec<SmallStackString>> {
+fn build(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<Vec<SmallStackString>> {
-  if_not_empty(map(separated_list(part, ch('.')), |text| {
-    text.into_iter().map(SmallStackString::from).collect()
-  }))(input)
+fn parts(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+  if_true(
+    map(separated_list(part, ch('.')), |text| {
+      text
+        .into_iter()
+        .map(SmallStackString::from)
+        .collect::<SmallVec<_>>()
+    }),
+    |items| !items.is_empty(),
+  )(input)
 }
 
 // part ::= nr | [-0-9A-Za-z]+
@@ -518,8 +527,8 @@ impl NpmPackageReqReference {
     &self.0.req
   }
 
-  pub fn sub_path(&self) -> Option<&str> {
-    self.0.sub_path.as_deref()
+  pub fn sub_path(&self) -> Option<&SmallStackString> {
+    self.0.sub_path.as_ref()
   }
 
   pub fn into_inner(self) -> PackageReqReference {
