@@ -18,6 +18,7 @@ use crate::package::PackageReq;
 use crate::package::PackageReqParseError;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
+use crate::StackString;
 
 /// A reference to a JSR package's name, version constraint, and potential sub path.
 /// This contains all the information found in an npm specifier.
@@ -77,7 +78,9 @@ impl JsrPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay)]
+#[derive(
+  Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay,
+)]
 pub struct JsrPackageNvReference(PackageNvReference);
 
 impl JsrPackageNvReference {
@@ -178,7 +181,9 @@ pub enum JsrDepPackageReqParseError {
 }
 
 /// A package constraint for a JSR dependency which could be from npm or JSR.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, CapacityDisplay)]
+#[derive(
+  Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, CapacityDisplay,
+)]
 pub struct JsrDepPackageReq {
   pub kind: PackageKind,
   pub req: PackageReq,
@@ -265,13 +270,14 @@ impl JsrDepPackageReq {
   /// Outputs a normalized string representation of this dependency.
   ///
   /// Note: The normalized string is not safe for a URL. It's best used for serialization.
-  pub fn to_string_normalized(&self) -> String {
-    format!(
-      "{}{}@{}",
-      self.kind.scheme_with_colon(),
-      self.req.name,
-      self.req.version_req.inner()
-    )
+  pub fn to_string_normalized(&self) -> StackString {
+    capacity_builder::StringBuilder::build(|builder| {
+      builder.append(self.kind.scheme_with_colon());
+      builder.append(&self.req.name);
+      builder.append('@');
+      builder.append(self.req.version_req.inner());
+    })
+    .unwrap()
   }
 }
 

@@ -16,7 +16,7 @@ serde = { version = "1.0.130", features = ["derive", "rc"] }
 thiserror = "2"
 url = "2.5.3"
 deno_error = "0.5.1"
-capacity_builder = { version = "0.4.2", features = ["ecow", "hipstr"] }
+capacity_builder = { version = "0.5.0", features = ["ecow", "hipstr"] }
 hipstr = "0.6"
 ecow = { version = "0.2.3", features = ["serde"] }
 
@@ -28,6 +28,3 @@ serde_json = { version = "1.0.67", features = ["preserve_order"] }
 [[bench]]
 name = "bench"
 harness = false
-
-[patch.crates-io]
-capacity_builder = { path = "../capacity_builder" }
