@@ -22,13 +22,12 @@ pub mod npm;
 pub mod package;
 mod range;
 mod specifier;
+mod string;
 
 /// A smaller two-byte vector.
 pub type SmallVec<T> = ecow::EcoVec<T>;
-/// A 16 byte string that uses the stack when < 16 bytes.
-pub type SmallStackString = ecow::EcoString;
-/// A 24 byte string that uses the stack when < 24 bytes.
-pub type StackString = hipstr::HipStr<'static>;
+pub use string::SmallStackString;
+pub use string::StackString;
 
 pub use self::specifier::VersionReqSpecifierParseError;
 

@@ -28,3 +28,6 @@ serde_json = { version = "1.0.67", features = ["preserve_order"] }
 [[bench]]
 name = "bench"
 harness = false
+
+[patch.crates-io]
+capacity_builder = { path = "../capacity_builder" }

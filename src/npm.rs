@@ -105,7 +105,10 @@ pub fn parse_npm_version_req(
   let text = text.trim();
   with_failure_handling(|input| {
     map(inner, |inner| {
-      VersionReq::from_raw_text_and_inner(input.into(), inner)
+      VersionReq::from_raw_text_and_inner(
+        SmallStackString::from_str(input),
+        inner,
+      )
     })(input)
   })(text)
   .map_err(|err| NpmVersionReqParseError { source: err })
@@ -147,7 +150,10 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
     match ranges.remove(0) {
       RangeOrInvalid::Invalid(invalid) => {
         if is_valid_npm_tag(invalid.text) {
-          return Ok((input, RangeSetOrTag::Tag(invalid.text.into())));
+          return Ok((
+            input,
+            RangeSetOrTag::Tag(SmallStackString::from_str(invalid.text)),
+          ));
         } else {
           return Err(invalid.failure);
         }
@@ -471,7 +477,7 @@ fn parts(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
-        .map(SmallStackString::from)
+        .map(SmallStackString::from_str)
         .collect::<SmallVec<_>>()
     }),
     |items| !items.is_empty(),

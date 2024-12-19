@@ -125,7 +125,7 @@ impl PackageReqReference {
     let sub_path = if sub_path.is_empty() || sub_path == "/" {
       None
     } else {
-      Some(SmallStackString::from(sub_path))
+      Some(SmallStackString::from_str(sub_path))
     };
 
     if let Some(sub_path) = &sub_path {
@@ -519,7 +519,7 @@ impl PackageNvReference {
           input,
           PackageNvReference {
             nv,
-            sub_path: maybe_sub_path.map(|p| p.into()),
+            sub_path: maybe_sub_path.map(SmallStackString::from_str),
           },
         ))
       }

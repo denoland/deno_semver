@@ -35,14 +35,14 @@ pub fn parse_version_req_from_specifier(
       Ok((
         new_input,
         VersionReq::from_raw_text_and_inner(
-          input.into(),
+          SmallStackString::from_str(input),
           match range_result {
             Ok(range) => {
               RangeSetOrTag::RangeSet(VersionRangeSet(SmallVec::from([range])))
             }
             Err(err) => {
               if is_valid_tag(input) {
-                RangeSetOrTag::Tag(input.into())
+                RangeSetOrTag::Tag(SmallStackString::from_str(input))
               } else if input.trim().is_empty() {
                 return ParseError::fail(input, "Empty version constraint.");
               } else {
@@ -168,7 +168,7 @@ fn parts(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
-        .map(SmallStackString::from)
+        .map(SmallStackString::from_str)
         .collect::<SmallVec<_>>()
     }),
     |items| !items.is_empty(),
