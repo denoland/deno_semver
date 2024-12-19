@@ -1,6 +1,6 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
@@ -17,8 +17,6 @@ use crate::npm::NpmVersionReqParseError;
 use crate::range::RangeBound;
 use crate::range::VersionBound;
 use crate::RangeSetOrTag;
-use crate::SmallStackString;
-use crate::StackString;
 use crate::Version;
 use crate::VersionBoundKind;
 use crate::VersionRange;
@@ -77,10 +75,10 @@ pub struct PackageReqReferenceInvalidWithVersionParseError {
 ///
 /// This contains all the information found in a package specifier other than
 /// what kind of package specifier it was.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageReqReference {
   pub req: PackageReq,
-  pub sub_path: Option<SmallStackString>,
+  pub sub_path: Option<PackageSubPath>,
 }
 
 impl<'a> StringAppendable<'a> for &'a PackageReqReference {
@@ -125,7 +123,7 @@ impl PackageReqReference {
     let sub_path = if sub_path.is_empty() || sub_path == "/" {
       None
     } else {
-      Some(SmallStackString::from_str(sub_path))
+      Some(PackageSubPath::from_str(sub_path))
     };
 
     if let Some(sub_path) = &sub_path {
@@ -177,10 +175,13 @@ pub struct PackageReqParseError {
   pub source: PackageReqPartsParseError,
 }
 
+pub type PackageName = crate::StackString;
+pub type PackageSubPath = crate::SmallStackString;
+
 /// The name and version constraint component of an `PackageReqReference`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageReq {
-  pub name: StackString,
+  pub name: PackageName,
   pub version_req: VersionReq,
 }
 
@@ -309,7 +310,7 @@ impl PackageReq {
       Self {
         name: match maybe_scope {
           Some(scope) => {
-            let mut text = StackString::with_capacity(
+            let mut text = PackageName::with_capacity(
               scope.len() + 1 + last_name_part.len(),
             );
             text.push_str(scope);
@@ -327,7 +328,7 @@ impl PackageReq {
   }
 
   /// Outputs a normalized string representation of the package requirement.
-  pub fn to_string_normalized(&self) -> StackString {
+  pub fn to_string_normalized(&self) -> crate::StackString {
     StringBuilder::build(|builder| {
       builder.append(&self.name);
       builder.append('@');
@@ -488,10 +489,12 @@ pub struct PackageNvReferenceParseError {
 }
 
 /// A package name and version with a potential subpath.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(
+  Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay,
+)]
 pub struct PackageNvReference {
   pub nv: PackageNv,
-  pub sub_path: Option<SmallStackString>,
+  pub sub_path: Option<PackageSubPath>,
 }
 
 impl PackageNvReference {
@@ -519,7 +522,7 @@ impl PackageNvReference {
           input,
           PackageNvReference {
             nv,
-            sub_path: maybe_sub_path.map(SmallStackString::from_str),
+            sub_path: maybe_sub_path.map(PackageSubPath::from_str),
           },
         ))
       }
@@ -571,9 +574,9 @@ pub struct PackageNvParseError {
   pub text: String,
 }
 
-#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageNv {
-  pub name: StackString,
+  pub name: PackageName,
   pub version: Version,
 }
 

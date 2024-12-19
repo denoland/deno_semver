@@ -8,7 +8,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
@@ -51,13 +51,15 @@ pub struct VersionParseError {
   source: monch::ParseErrorFailureError,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, FastDisplay)]
+pub type VersionPreOrBuild = SmallStackString;
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, CapacityDisplay)]
 pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
-  pub pre: SmallVec<SmallStackString>,
-  pub build: SmallVec<SmallStackString>,
+  pub pre: SmallVec<VersionPreOrBuild>,
+  pub build: SmallVec<VersionPreOrBuild>,
 }
 
 impl<'a> StringAppendable<'a> for &'a Version {
@@ -204,12 +206,14 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
   npm::is_valid_npm_tag(value)
 }
 
+pub type PackageTag = SmallStackString;
+
 #[derive(
-  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
 pub enum RangeSetOrTag {
   RangeSet(VersionRangeSet),
-  Tag(SmallStackString),
+  Tag(PackageTag),
 }
 
 impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {

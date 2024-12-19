@@ -7,9 +7,10 @@ use crate::range::Partial;
 use crate::range::VersionRange;
 use crate::range::VersionRangeSet;
 use crate::range::XRange;
+use crate::PackageTag;
 use crate::RangeSetOrTag;
-use crate::SmallStackString;
 use crate::SmallVec;
+use crate::VersionPreOrBuild;
 use crate::VersionReq;
 
 use crate::is_valid_tag;
@@ -35,14 +36,14 @@ pub fn parse_version_req_from_specifier(
       Ok((
         new_input,
         VersionReq::from_raw_text_and_inner(
-          SmallStackString::from_str(input),
+          crate::SmallStackString::from_str(input),
           match range_result {
             Ok(range) => {
               RangeSetOrTag::RangeSet(VersionRangeSet(SmallVec::from([range])))
             }
             Err(err) => {
               if is_valid_tag(input) {
-                RangeSetOrTag::Tag(SmallStackString::from_str(input))
+                RangeSetOrTag::Tag(PackageTag::from_str(input))
               } else if input.trim().is_empty() {
                 return ParseError::fail(input, "Empty version constraint.");
               } else {
@@ -135,8 +136,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: SmallVec<SmallStackString>,
-  build: SmallVec<SmallStackString>,
+  pre: SmallVec<VersionPreOrBuild>,
+  build: SmallVec<VersionPreOrBuild>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -153,22 +154,22 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn pre(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   preceded(ch('-'), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn build(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn parts(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
-        .map(SmallStackString::from_str)
+        .map(VersionPreOrBuild::from_str)
         .collect::<SmallVec<_>>()
     }),
     |items| !items.is_empty(),

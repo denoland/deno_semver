@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
 use deno_error::JsError;
@@ -20,8 +20,9 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
-use crate::SmallStackString;
+use crate::PackageTag;
 use crate::SmallVec;
+use crate::VersionPreOrBuild;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -106,7 +107,7 @@ pub fn parse_npm_version_req(
   with_failure_handling(|input| {
     map(inner, |inner| {
       VersionReq::from_raw_text_and_inner(
-        SmallStackString::from_str(input),
+        crate::SmallStackString::from_str(input),
         inner,
       )
     })(input)
@@ -152,7 +153,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
         if is_valid_npm_tag(invalid.text) {
           return Ok((
             input,
-            RangeSetOrTag::Tag(SmallStackString::from_str(invalid.text)),
+            RangeSetOrTag::Tag(PackageTag::from_str(invalid.text)),
           ));
         } else {
           return Err(invalid.failure);
@@ -444,8 +445,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: SmallVec<SmallStackString>,
-  build: SmallVec<SmallStackString>,
+  pre: SmallVec<VersionPreOrBuild>,
+  build: SmallVec<VersionPreOrBuild>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -462,22 +463,22 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn pre(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn build(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<SmallVec<SmallStackString>> {
+fn parts(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
-        .map(SmallStackString::from_str)
+        .map(VersionPreOrBuild::from_str)
         .collect::<SmallVec<_>>()
     }),
     |items| !items.is_empty(),
@@ -498,7 +499,7 @@ fn part(input: &str) -> ParseResult<&str> {
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct NpmPackageReqReference(PackageReqReference);
 
 impl<'a> StringAppendable<'a> for &'a NpmPackageReqReference {
@@ -533,8 +534,8 @@ impl NpmPackageReqReference {
     &self.0.req
   }
 
-  pub fn sub_path(&self) -> Option<&SmallStackString> {
-    self.0.sub_path.as_ref()
+  pub fn sub_path(&self) -> Option<&str> {
+    self.0.sub_path.as_deref()
   }
 
   pub fn into_inner(self) -> PackageReqReference {
@@ -546,7 +547,9 @@ impl NpmPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(
+  Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay,
+)]
 pub struct NpmPackageNvReference(PackageNvReference);
 
 impl NpmPackageNvReference {

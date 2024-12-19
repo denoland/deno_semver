@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
 use serde::Deserialize;
@@ -24,7 +24,7 @@ use crate::package::PackageReqReferenceParseError;
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct JsrPackageReqReference(PackageReqReference);
 
 impl<'a> StringAppendable<'a> for &'a JsrPackageReqReference {
@@ -77,7 +77,7 @@ impl JsrPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct JsrPackageNvReference(PackageNvReference);
 
 impl JsrPackageNvReference {
@@ -178,7 +178,7 @@ pub enum JsrDepPackageReqParseError {
 }
 
 /// A package constraint for a JSR dependency which could be from npm or JSR.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, CapacityDisplay)]
 pub struct JsrDepPackageReq {
   pub kind: PackageKind,
   pub req: PackageReq,

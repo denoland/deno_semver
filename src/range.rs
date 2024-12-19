@@ -2,21 +2,21 @@
 
 use std::cmp::Ordering;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::SmallStackString;
 use crate::SmallVec;
+use crate::VersionPreOrBuild;
 
 use super::Version;
 
 /// Collection of ranges.
 #[derive(
-  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
 pub struct VersionRangeSet(pub SmallVec<VersionRange>);
 
@@ -149,7 +149,7 @@ impl VersionBound {
 }
 
 #[derive(
-  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
 pub struct VersionRange {
   pub start: RangeBound,
@@ -511,8 +511,8 @@ pub struct Partial {
   pub major: XRange,
   pub minor: XRange,
   pub patch: XRange,
-  pub pre: SmallVec<SmallStackString>,
-  pub build: SmallVec<SmallStackString>,
+  pub pre: SmallVec<VersionPreOrBuild>,
+  pub build: SmallVec<VersionPreOrBuild>,
 }
 
 impl Partial {
