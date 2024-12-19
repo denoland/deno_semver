@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
 use serde::Deserialize;
@@ -24,7 +24,7 @@ use crate::package::PackageReqReferenceParseError;
 ///
 /// This wraps PackageReqReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct JsrPackageReqReference(PackageReqReference);
 
 impl<'a> StringAppendable<'a> for &'a JsrPackageReqReference {
@@ -77,7 +77,9 @@ impl JsrPackageReqReference {
 ///
 /// This wraps PackageNvReference in order to prevent accidentally
 /// mixing this with other schemes.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(
+  Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay,
+)]
 pub struct JsrPackageNvReference(PackageNvReference);
 
 impl JsrPackageNvReference {
@@ -142,7 +144,7 @@ impl<'de> Deserialize<'de> for JsrPackageNvReference {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Self::from_str(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -178,7 +180,9 @@ pub enum JsrDepPackageReqParseError {
 }
 
 /// A package constraint for a JSR dependency which could be from npm or JSR.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, FastDisplay)]
+#[derive(
+  Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, CapacityDisplay,
+)]
 pub struct JsrDepPackageReq {
   pub kind: PackageKind,
   pub req: PackageReq,
@@ -208,7 +212,7 @@ impl<'de> Deserialize<'de> for JsrDepPackageReq {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Self::from_str_loose(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -265,13 +269,14 @@ impl JsrDepPackageReq {
   /// Outputs a normalized string representation of this dependency.
   ///
   /// Note: The normalized string is not safe for a URL. It's best used for serialization.
-  pub fn to_string_normalized(&self) -> String {
-    format!(
-      "{}{}@{}",
-      self.kind.scheme_with_colon(),
-      self.req.name,
-      self.req.version_req.inner()
-    )
+  pub fn to_string_normalized(&self) -> crate::StackString {
+    capacity_builder::StringBuilder::build(|builder| {
+      builder.append(self.kind.scheme_with_colon());
+      builder.append(&self.req.name);
+      builder.append('@');
+      builder.append(self.req.version_req.inner());
+    })
+    .unwrap()
   }
 }
 

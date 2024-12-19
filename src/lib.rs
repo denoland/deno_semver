@@ -3,11 +3,12 @@
 #![deny(clippy::print_stderr)]
 #![deny(clippy::print_stdout)]
 
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
@@ -21,6 +22,12 @@ pub mod npm;
 pub mod package;
 mod range;
 mod specifier;
+mod string;
+
+/// A smaller two-byte vector.
+pub type CowVec<T> = ecow::EcoVec<T>;
+pub use string::SmallStackString;
+pub use string::StackString;
 
 pub use self::specifier::VersionReqSpecifierParseError;
 
@@ -44,13 +51,15 @@ pub struct VersionParseError {
   source: monch::ParseErrorFailureError,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, FastDisplay)]
+pub type VersionPreOrBuild = SmallStackString;
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, Hash, CapacityDisplay)]
 pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
-  pub pre: Vec<String>,
-  pub build: Vec<String>,
+  pub pre: CowVec<VersionPreOrBuild>,
+  pub build: CowVec<VersionPreOrBuild>,
 }
 
 impl<'a> StringAppendable<'a> for &'a Version {
@@ -98,7 +107,7 @@ impl<'de> Deserialize<'de> for Version {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Version::parse_standard(&text) {
       Ok(version) => Ok(version),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -197,12 +206,14 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
   npm::is_valid_npm_tag(value)
 }
 
+pub type PackageTag = SmallStackString;
+
 #[derive(
-  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
 pub enum RangeSetOrTag {
   RangeSet(VersionRangeSet),
-  Tag(String),
+  Tag(PackageTag),
 }
 
 impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
@@ -233,7 +244,7 @@ impl RangeSetOrTag {
 /// A version constraint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionReq {
-  raw_text: String,
+  raw_text: SmallStackString,
   inner: RangeSetOrTag,
 }
 
@@ -254,7 +265,7 @@ impl Hash for VersionReq {
 impl VersionReq {
   /// Creates a version requirement without examining the raw text.
   pub fn from_raw_text_and_inner(
-    raw_text: String,
+    raw_text: SmallStackString,
     inner: RangeSetOrTag,
   ) -> Self {
     Self { raw_text, inner }

@@ -2,20 +2,23 @@
 
 use std::cmp::Ordering;
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::CowVec;
+use crate::VersionPreOrBuild;
+
 use super::Version;
 
 /// Collection of ranges.
 #[derive(
-  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
-pub struct VersionRangeSet(pub Vec<VersionRange>);
+pub struct VersionRangeSet(pub CowVec<VersionRange>);
 
 impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
@@ -146,7 +149,7 @@ impl VersionBound {
 }
 
 #[derive(
-  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, FastDisplay,
+  Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
 pub struct VersionRange {
   pub start: RangeBound,
@@ -508,8 +511,8 @@ pub struct Partial {
   pub major: XRange,
   pub minor: XRange,
   pub patch: XRange,
-  pub pre: Vec<String>,
-  pub build: Vec<String>,
+  pub pre: CowVec<VersionPreOrBuild>,
+  pub build: CowVec<VersionPreOrBuild>,
 }
 
 impl Partial {
@@ -522,15 +525,15 @@ impl Partial {
           major: major + 1,
           minor: 0,
           patch: 0,
-          pre: Vec::new(),
-          build: Vec::new(),
+          pre: Default::default(),
+          build: Default::default(),
         },
         XRange::Val(minor) => Version {
           major,
           minor: minor + 1,
           patch: 0,
-          pre: Vec::new(),
-          build: Vec::new(),
+          pre: Default::default(),
+          build: Default::default(),
         },
       },
     };

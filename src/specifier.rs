@@ -7,7 +7,10 @@ use crate::range::Partial;
 use crate::range::VersionRange;
 use crate::range::VersionRangeSet;
 use crate::range::XRange;
+use crate::CowVec;
+use crate::PackageTag;
 use crate::RangeSetOrTag;
+use crate::VersionPreOrBuild;
 use crate::VersionReq;
 
 use crate::is_valid_tag;
@@ -33,12 +36,14 @@ pub fn parse_version_req_from_specifier(
       Ok((
         new_input,
         VersionReq::from_raw_text_and_inner(
-          input.to_string(),
+          crate::SmallStackString::from_str(input),
           match range_result {
-            Ok(range) => RangeSetOrTag::RangeSet(VersionRangeSet(vec![range])),
+            Ok(range) => {
+              RangeSetOrTag::RangeSet(VersionRangeSet(CowVec::from([range])))
+            }
             Err(err) => {
               if is_valid_tag(input) {
-                RangeSetOrTag::Tag(input.to_string())
+                RangeSetOrTag::Tag(PackageTag::from_str(input))
               } else if input.trim().is_empty() {
                 return ParseError::fail(input, "Empty version constraint.");
               } else {
@@ -131,8 +136,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: Vec<String>,
-  build: Vec<String>,
+  pre: CowVec<VersionPreOrBuild>,
+  build: CowVec<VersionPreOrBuild>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -149,20 +154,26 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<Vec<String>> {
+fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(ch('-'), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<Vec<String>> {
+fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<Vec<String>> {
-  if_not_empty(map(separated_list(part, ch('.')), |text| {
-    text.into_iter().map(ToOwned::to_owned).collect()
-  }))(input)
+fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+  if_true(
+    map(separated_list(part, ch('.')), |text| {
+      text
+        .into_iter()
+        .map(VersionPreOrBuild::from_str)
+        .collect::<CowVec<_>>()
+    }),
+    |items| !items.is_empty(),
+  )(input)
 }
 
 // part ::= nr | [-0-9A-Za-z]+
