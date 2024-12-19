@@ -20,8 +20,8 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
-use crate::PackageTag;
 use crate::CowVec;
+use crate::PackageTag;
 use crate::VersionPreOrBuild;
 
 use super::Partial;

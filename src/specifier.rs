@@ -7,9 +7,9 @@ use crate::range::Partial;
 use crate::range::VersionRange;
 use crate::range::VersionRangeSet;
 use crate::range::XRange;
+use crate::CowVec;
 use crate::PackageTag;
 use crate::RangeSetOrTag;
-use crate::CowVec;
 use crate::VersionPreOrBuild;
 use crate::VersionReq;
 
