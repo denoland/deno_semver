@@ -9,7 +9,7 @@ use capacity_builder::StringType;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::SmallVec;
+use crate::CowVec;
 use crate::VersionPreOrBuild;
 
 use super::Version;
@@ -18,7 +18,7 @@ use super::Version;
 #[derive(
   Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
 )]
-pub struct VersionRangeSet(pub SmallVec<VersionRange>);
+pub struct VersionRangeSet(pub CowVec<VersionRange>);
 
 impl VersionRangeSet {
   pub fn satisfies(&self, version: &Version) -> bool {
@@ -511,8 +511,8 @@ pub struct Partial {
   pub major: XRange,
   pub minor: XRange,
   pub patch: XRange,
-  pub pre: SmallVec<VersionPreOrBuild>,
-  pub build: SmallVec<VersionPreOrBuild>,
+  pub pre: CowVec<VersionPreOrBuild>,
+  pub build: CowVec<VersionPreOrBuild>,
 }
 
 impl Partial {

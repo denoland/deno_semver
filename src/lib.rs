@@ -25,7 +25,7 @@ mod specifier;
 mod string;
 
 /// A smaller two-byte vector.
-pub type SmallVec<T> = ecow::EcoVec<T>;
+pub type CowVec<T> = ecow::EcoVec<T>;
 pub use string::SmallStackString;
 pub use string::StackString;
 
@@ -58,8 +58,8 @@ pub struct Version {
   pub major: u64,
   pub minor: u64,
   pub patch: u64,
-  pub pre: SmallVec<VersionPreOrBuild>,
-  pub build: SmallVec<VersionPreOrBuild>,
+  pub pre: CowVec<VersionPreOrBuild>,
+  pub build: CowVec<VersionPreOrBuild>,
 }
 
 impl<'a> StringAppendable<'a> for &'a Version {

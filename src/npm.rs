@@ -21,7 +21,7 @@ use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
 use crate::PackageTag;
-use crate::SmallVec;
+use crate::CowVec;
 use crate::VersionPreOrBuild;
 
 use super::Partial;
@@ -138,7 +138,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
   if input.is_empty() {
     return Ok((
       input,
-      RangeSetOrTag::RangeSet(VersionRangeSet(SmallVec::from([
+      RangeSetOrTag::RangeSet(VersionRangeSet(CowVec::from([
         VersionRange::all(),
       ]))),
     ));
@@ -169,7 +169,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
   let ranges = ranges
     .into_iter()
     .filter_map(|r| r.into_range())
-    .collect::<SmallVec<_>>();
+    .collect::<CowVec<_>>();
   Ok((input, RangeSetOrTag::RangeSet(VersionRangeSet(ranges))))
 }
 
@@ -445,8 +445,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: SmallVec<VersionPreOrBuild>,
-  build: SmallVec<VersionPreOrBuild>,
+  pre: CowVec<VersionPreOrBuild>,
+  build: CowVec<VersionPreOrBuild>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -463,23 +463,23 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
         .map(VersionPreOrBuild::from_str)
-        .collect::<SmallVec<_>>()
+        .collect::<CowVec<_>>()
     }),
     |items| !items.is_empty(),
   )(input)

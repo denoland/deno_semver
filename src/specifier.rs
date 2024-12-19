@@ -9,7 +9,7 @@ use crate::range::VersionRangeSet;
 use crate::range::XRange;
 use crate::PackageTag;
 use crate::RangeSetOrTag;
-use crate::SmallVec;
+use crate::CowVec;
 use crate::VersionPreOrBuild;
 use crate::VersionReq;
 
@@ -39,7 +39,7 @@ pub fn parse_version_req_from_specifier(
           crate::SmallStackString::from_str(input),
           match range_result {
             Ok(range) => {
-              RangeSetOrTag::RangeSet(VersionRangeSet(SmallVec::from([range])))
+              RangeSetOrTag::RangeSet(VersionRangeSet(CowVec::from([range])))
             }
             Err(err) => {
               if is_valid_tag(input) {
@@ -136,8 +136,8 @@ fn nr(input: &str) -> ParseResult<u64> {
 
 #[derive(Debug, Clone, Default)]
 struct Qualifier {
-  pre: SmallVec<VersionPreOrBuild>,
-  build: SmallVec<VersionPreOrBuild>,
+  pre: CowVec<VersionPreOrBuild>,
+  build: CowVec<VersionPreOrBuild>,
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
@@ -154,23 +154,23 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(ch('-'), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<SmallVec<VersionPreOrBuild>> {
+fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
         .into_iter()
         .map(VersionPreOrBuild::from_str)
-        .collect::<SmallVec<_>>()
+        .collect::<CowVec<_>>()
     }),
     |items| !items.is_empty(),
   )(input)

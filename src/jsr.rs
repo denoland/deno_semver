@@ -18,7 +18,6 @@ use crate::package::PackageReq;
 use crate::package::PackageReqParseError;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
-use crate::StackString;
 
 /// A reference to a JSR package's name, version constraint, and potential sub path.
 /// This contains all the information found in an npm specifier.
@@ -270,7 +269,7 @@ impl JsrDepPackageReq {
   /// Outputs a normalized string representation of this dependency.
   ///
   /// Note: The normalized string is not safe for a URL. It's best used for serialization.
-  pub fn to_string_normalized(&self) -> StackString {
+  pub fn to_string_normalized(&self) -> crate::StackString {
     capacity_builder::StringBuilder::build(|builder| {
       builder.append(self.kind.scheme_with_colon());
       builder.append(&self.req.name);
