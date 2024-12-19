@@ -167,6 +167,7 @@ impl StackString {
 
   /// Creates a `StackString` from a `&str`.
   #[inline(always)]
+  #[allow(clippy::should_implement_trait)]
   pub fn from_str(s: &str) -> Self {
     Self(hipstr::HipStr::from(s))
   }
@@ -250,6 +251,7 @@ impl SmallStackString {
 
   /// Creates a `SmallStackString` from a `&str`.
   #[inline(always)]
+  #[allow(clippy::should_implement_trait)]
   pub fn from_str(s: &str) -> Self {
     Self(ecow::EcoString::from(s))
   }
