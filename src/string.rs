@@ -1,15 +1,11 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Borrow;
-use std::fmt;
 use std::ops::Deref;
 
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
-use serde::de::Error;
-use serde::de::Visitor;
 use serde::Deserialize;
-use serde::Deserializer;
 use serde::Serialize;
 
 macro_rules! shared {
@@ -141,7 +137,13 @@ macro_rules! shared {
   };
 }
 
+#[cfg(any(unix, windows))]
 mod stack_string {
+  use serde::de::Error;
+  use serde::de::Visitor;
+  use serde::Deserializer;
+  use std::fmt;
+
   use super::*;
 
   /// A 24 byte string that uses the stack when < 24 bytes.
@@ -254,6 +256,7 @@ mod stack_string {
 
 mod small_stack_string {
   use super::*;
+
   /// A 16 byte string that uses the stack when < 16 bytes.
   #[derive(
     Debug,
@@ -421,4 +424,8 @@ mod regular_string {
 
 // this is here to allow easily swapping implementations
 pub use small_stack_string::SmallStackString;
+
+#[cfg(not(any(unix, windows)))]
+pub use regular_string::RegularString as StackString;
+#[cfg(any(unix, windows))]
 pub use stack_string::StackString;
