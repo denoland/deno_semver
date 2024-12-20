@@ -1,11 +1,15 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Borrow;
+use std::fmt;
 use std::ops::Deref;
 
 use capacity_builder::StringAppendable;
 use capacity_builder::StringType;
+use serde::de::Error;
+use serde::de::Visitor;
 use serde::Deserialize;
+use serde::Deserializer;
 use serde::Serialize;
 
 macro_rules! shared {
@@ -137,169 +141,284 @@ macro_rules! shared {
   };
 }
 
-/// A 24 byte string that uses the stack when < 24 bytes.
-#[derive(
-  Debug,
-  Default,
-  Clone,
-  PartialOrd,
-  Ord,
-  PartialEq,
-  Eq,
-  Hash,
-  Serialize,
-  Deserialize,
-)]
-pub struct StackString(hipstr::HipStr<'static>);
+mod stack_string {
+  use super::*;
 
-shared!(StackString);
+  /// A 24 byte string that uses the stack when < 24 bytes.
+  #[derive(
+    Debug, Default, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize,
+  )]
+  pub struct StackString(hipstr::HipStr<'static>);
 
-impl StackString {
-  #[inline(always)]
-  pub fn with_capacity(size: usize) -> Self {
-    Self(hipstr::HipStr::with_capacity(size))
+  // todo(dsherret): remove once https://github.com/polazarus/hipstr/pull/38 lands
+  struct StackStringVisitor;
+
+  impl Visitor<'_> for StackStringVisitor {
+    type Value = StackString;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+      formatter.write_str("a string")
+    }
+
+    #[inline(always)]
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+      E: Error,
+    {
+      Ok(StackString::from_str(v))
+    }
   }
 
-  #[inline(always)]
-  pub fn from_static(s: &'static str) -> Self {
-    Self(hipstr::HipStr::from_static(s))
+  impl<'de> serde::Deserialize<'de> for StackString {
+    #[inline(always)]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+      D: Deserializer<'de>,
+    {
+      deserializer.deserialize_str(StackStringVisitor)
+    }
   }
 
-  /// Creates a `StackString` from a `&str`.
-  #[inline(always)]
-  #[allow(clippy::should_implement_trait)]
-  pub fn from_str(s: &str) -> Self {
-    Self(hipstr::HipStr::from(s))
+  shared!(StackString);
+
+  impl StackString {
+    #[inline(always)]
+    pub fn with_capacity(size: usize) -> Self {
+      Self(hipstr::HipStr::with_capacity(size))
+    }
+
+    #[inline(always)]
+    pub fn from_static(s: &'static str) -> Self {
+      Self(hipstr::HipStr::from_static(s))
+    }
+
+    /// Creates a `StackString` from a `&str`.
+    #[inline(always)]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+      Self(hipstr::HipStr::from(s))
+    }
+
+    /// Creates a `StackString` from a `String`.
+    ///
+    /// Generally you don't want to end up with a `String` in the first
+    /// place, which is why this struct doesn't implement `From<String>`
+    #[inline(always)]
+    pub fn from_string(s: String) -> Self {
+      Self(hipstr::HipStr::from(s))
+    }
+
+    pub fn replace(&self, from: &str, to: &str) -> Self {
+      // hipstr currently doesn't have a targeted replace method
+      Self(self.0.replace(from, to).into())
+    }
+
+    pub fn into_string(self) -> String {
+      match self.0.into_string() {
+        Ok(value) => value,
+        Err(existing) => existing.to_string(),
+      }
+    }
   }
 
-  /// Creates a `StackString` from a `String`.
-  ///
-  /// Generally you don't want to end up with a `String` in the first
-  /// place, which is why this struct doesn't implement `From<String>`
-  #[inline(always)]
-  pub fn from_string(s: String) -> Self {
-    Self(hipstr::HipStr::from(s))
+  impl StringType for StackString {
+    type MutType = hipstr::HipStr<'static>;
+
+    #[inline(always)]
+    fn with_capacity(
+      size: usize,
+    ) -> Result<Self::MutType, std::collections::TryReserveError> {
+      Ok(hipstr::HipStr::with_capacity(size))
+    }
+
+    #[inline(always)]
+    fn from_mut(inner: Self::MutType) -> Self {
+      Self(inner)
+    }
   }
 
-  pub fn replace(&self, from: &str, to: &str) -> Self {
-    // hipstr currently doesn't have a targeted replace method
-    Self(self.0.replace(from, to).into())
-  }
+  // Note: Do NOT implement `From<String>` in order to discourage its use
+  // because we shouldn't end up with a `String` in the first place.
 
-  pub fn into_string(self) -> String {
-    self.0.into()
-  }
-}
-
-impl StringType for StackString {
-  type MutType = hipstr::HipStr<'static>;
-
-  #[inline(always)]
-  fn with_capacity(
-    size: usize,
-  ) -> Result<Self::MutType, std::collections::TryReserveError> {
-    Ok(hipstr::HipStr::with_capacity(size))
-  }
-
-  #[inline(always)]
-  fn from_mut(inner: Self::MutType) -> Self {
-    Self(inner)
-  }
-}
-
-// Note: Do NOT implement `From<String>` in order to discourage its use
-// because we shouldn't end up with a `String` in the first place.
-
-// It would be nice to only implement this for 'static strings, but unfortunately
-// rust has trouble giving nice error messages when trying to do that and requiring
-// having to write `StackString::from_str` in test code instead of `"something".into()`
-// is not very nice.
-impl From<&str> for StackString {
-  #[inline(always)]
-  fn from(s: &str) -> Self {
-    Self(hipstr::HipStr::from(s))
-  }
-}
-
-/// A 16 byte string that uses the stack when < 16 bytes.
-#[derive(
-  Debug,
-  Default,
-  Clone,
-  PartialOrd,
-  Ord,
-  PartialEq,
-  Eq,
-  Hash,
-  Serialize,
-  Deserialize,
-)]
-pub struct SmallStackString(ecow::EcoString);
-
-shared!(SmallStackString);
-
-impl SmallStackString {
-  #[inline(always)]
-  pub fn from_static(s: &'static str) -> Self {
-    Self(ecow::EcoString::from(s))
-  }
-
-  #[inline(always)]
-  pub fn with_capacity(size: usize) -> Self {
-    Self(ecow::EcoString::with_capacity(size))
-  }
-
-  /// Creates a `SmallStackString` from a `&str`.
-  #[inline(always)]
-  #[allow(clippy::should_implement_trait)]
-  pub fn from_str(s: &str) -> Self {
-    Self(ecow::EcoString::from(s))
-  }
-
-  /// Creates a `SmallStackString` from a `String`.
-  ///
-  /// Generally you don't want to end up with a `String` in the first
-  /// place, which is why this struct doesn't implement `From<String>`
-  #[inline(always)]
-  pub fn from_string(s: String) -> Self {
-    Self(ecow::EcoString::from(s))
-  }
-
-  pub fn replace(&self, from: &str, to: &str) -> Self {
-    Self(self.0.replace(from, to))
-  }
-
-  pub fn into_string(self) -> String {
-    self.0.into()
+  // It would be nice to only implement this for 'static strings, but unfortunately
+  // rust has trouble giving nice error messages when trying to do that and requiring
+  // having to write `StackString::from_str` in test code instead of `"something".into()`
+  // is not very nice.
+  impl From<&str> for StackString {
+    #[inline(always)]
+    fn from(s: &str) -> Self {
+      Self(hipstr::HipStr::from(s))
+    }
   }
 }
 
-impl StringType for SmallStackString {
-  type MutType = ecow::EcoString;
+mod small_stack_string {
+  use super::*;
+  /// A 16 byte string that uses the stack when < 16 bytes.
+  #[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+  )]
+  pub struct SmallStackString(ecow::EcoString);
 
-  #[inline(always)]
-  fn with_capacity(
-    size: usize,
-  ) -> Result<Self::MutType, std::collections::TryReserveError> {
-    Ok(ecow::EcoString::with_capacity(size))
+  shared!(SmallStackString);
+
+  impl SmallStackString {
+    #[inline(always)]
+    pub fn from_static(s: &'static str) -> Self {
+      Self(ecow::EcoString::from(s))
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(size: usize) -> Self {
+      Self(ecow::EcoString::with_capacity(size))
+    }
+
+    /// Creates a `SmallStackString` from a `&str`.
+    #[inline(always)]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+      Self(ecow::EcoString::from(s))
+    }
+
+    /// Creates a `SmallStackString` from a `String`.
+    ///
+    /// Generally you don't want to end up with a `String` in the first
+    /// place, which is why this struct doesn't implement `From<String>`
+    #[inline(always)]
+    pub fn from_string(s: String) -> Self {
+      Self(ecow::EcoString::from(s))
+    }
+
+    pub fn replace(&self, from: &str, to: &str) -> Self {
+      Self(self.0.replace(from, to))
+    }
+
+    pub fn into_string(self) -> String {
+      self.0.into()
+    }
   }
 
-  #[inline(always)]
-  fn from_mut(inner: Self::MutType) -> Self {
-    Self(inner)
+  impl StringType for SmallStackString {
+    type MutType = ecow::EcoString;
+
+    #[inline(always)]
+    fn with_capacity(
+      size: usize,
+    ) -> Result<Self::MutType, std::collections::TryReserveError> {
+      Ok(ecow::EcoString::with_capacity(size))
+    }
+
+    #[inline(always)]
+    fn from_mut(inner: Self::MutType) -> Self {
+      Self(inner)
+    }
+  }
+
+  // Note: Do NOT implement `From<String>` in order to discourage its use
+  // because we shouldn't end up with a `String` in the first place.
+
+  // It would be nice to only implement this for 'static strings, but unfortunately
+  // rust has trouble giving nice error messages when trying to do that and requiring
+  // having to write `SmallStackString::from_str` in test code instead of `"something".into()`
+  // is not very nice.
+  impl From<&str> for SmallStackString {
+    #[inline(always)]
+    fn from(s: &str) -> Self {
+      Self(ecow::EcoString::from(s))
+    }
   }
 }
 
-// Note: Do NOT implement `From<String>` in order to discourage its use
-// because we shouldn't end up with a `String` in the first place.
+// This module is for comparing the implementations above with a regular `String`.
+// For example, do `pub regular_string::RegularString as StackString;`
+mod regular_string {
+  use super::*;
 
-// It would be nice to only implement this for 'static strings, but unfortunately
-// rust has trouble giving nice error messages when trying to do that and requiring
-// having to write `SmallStackString::from_str` in test code instead of `"something".into()`
-// is not very nice.
-impl From<&str> for SmallStackString {
-  #[inline(always)]
-  fn from(s: &str) -> Self {
-    Self(ecow::EcoString::from(s))
+  #[derive(
+    Debug,
+    Default,
+    Clone,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+  )]
+  pub struct RegularString(String);
+
+  shared!(RegularString);
+
+  impl RegularString {
+    #[inline(always)]
+    pub fn from_static(s: &'static str) -> Self {
+      Self(String::from(s))
+    }
+
+    #[inline(always)]
+    pub fn with_capacity(size: usize) -> Self {
+      Self(String::with_capacity(size))
+    }
+
+    /// Creates a `SmallStackString` from a `&str`.
+    #[inline(always)]
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Self {
+      Self(String::from(s))
+    }
+
+    /// Creates a `SmallStackString` from a `String`.
+    ///
+    /// Generally you don't want to end up with a `String` in the first
+    /// place, which is why this struct doesn't implement `From<String>`
+    #[inline(always)]
+    pub fn from_string(s: String) -> Self {
+      Self(s)
+    }
+
+    pub fn replace(&self, from: &str, to: &str) -> Self {
+      Self(self.0.replace(from, to))
+    }
+
+    pub fn into_string(self) -> String {
+      self.0
+    }
+  }
+
+  impl StringType for RegularString {
+    type MutType = String;
+
+    #[inline(always)]
+    fn with_capacity(
+      size: usize,
+    ) -> Result<Self::MutType, std::collections::TryReserveError> {
+      Ok(String::with_capacity(size))
+    }
+
+    #[inline(always)]
+    fn from_mut(inner: Self::MutType) -> Self {
+      Self(inner)
+    }
+  }
+
+  impl From<&str> for RegularString {
+    #[inline(always)]
+    fn from(s: &str) -> Self {
+      Self(String::from(s))
+    }
   }
 }
+
+// this is here to allow easily swapping implementations
+pub use small_stack_string::SmallStackString;
+pub use stack_string::StackString;
