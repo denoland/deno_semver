@@ -1,6 +1,6 @@
 // Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
 
-use capacity_builder::FastDisplay;
+use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
 use capacity_builder::StringBuilder;
 use capacity_builder::StringType;
@@ -8,6 +8,7 @@ use deno_error::JsError;
 use monch::ParseErrorFailure;
 use serde::Deserialize;
 use serde::Serialize;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
@@ -74,10 +75,10 @@ pub struct PackageReqReferenceInvalidWithVersionParseError {
 ///
 /// This contains all the information found in a package specifier other than
 /// what kind of package specifier it was.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageReqReference {
   pub req: PackageReq,
-  pub sub_path: Option<String>,
+  pub sub_path: Option<PackageSubPath>,
 }
 
 impl<'a> StringAppendable<'a> for &'a PackageReqReference {
@@ -122,7 +123,7 @@ impl PackageReqReference {
     let sub_path = if sub_path.is_empty() || sub_path == "/" {
       None
     } else {
-      Some(sub_path.to_string())
+      Some(PackageSubPath::from_str(sub_path))
     };
 
     if let Some(sub_path) = &sub_path {
@@ -174,10 +175,13 @@ pub struct PackageReqParseError {
   pub source: PackageReqPartsParseError,
 }
 
+pub type PackageName = crate::StackString;
+pub type PackageSubPath = crate::SmallStackString;
+
 /// The name and version constraint component of an `PackageReqReference`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageReq {
-  pub name: String,
+  pub name: PackageName,
   pub version_req: VersionReq,
 }
 
@@ -305,8 +309,16 @@ impl PackageReq {
     Ok((
       Self {
         name: match maybe_scope {
-          Some(scope) => format!("{}/{}", scope, last_name_part),
-          None => last_name_part.to_string(),
+          Some(scope) => {
+            let mut text = PackageName::with_capacity(
+              scope.len() + 1 + last_name_part.len(),
+            );
+            text.push_str(scope);
+            text.push('/');
+            text.push_str(last_name_part);
+            text
+          }
+          None => last_name_part.into(),
         },
         version_req: version_req
           .unwrap_or_else(|| WILDCARD_VERSION_REQ.clone()),
@@ -316,7 +328,7 @@ impl PackageReq {
   }
 
   /// Outputs a normalized string representation of the package requirement.
-  pub fn to_string_normalized(&self) -> String {
+  pub fn to_string_normalized(&self) -> crate::StackString {
     StringBuilder::build(|builder| {
       builder.append(&self.name);
       builder.append('@');
@@ -340,7 +352,7 @@ impl<'de> Deserialize<'de> for PackageReq {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Self::from_str_loose(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -477,10 +489,12 @@ pub struct PackageNvReferenceParseError {
 }
 
 /// A package name and version with a potential subpath.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(
+  Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay,
+)]
 pub struct PackageNvReference {
   pub nv: PackageNv,
-  pub sub_path: Option<String>,
+  pub sub_path: Option<PackageSubPath>,
 }
 
 impl PackageNvReference {
@@ -508,7 +522,7 @@ impl PackageNvReference {
           input,
           PackageNvReference {
             nv,
-            sub_path: maybe_sub_path.map(ToOwned::to_owned),
+            sub_path: maybe_sub_path.map(PackageSubPath::from_str),
           },
         ))
       }
@@ -523,24 +537,18 @@ impl PackageNvReference {
   }
 
   pub(crate) fn as_specifier(&self, kind: PackageKind) -> Url {
-    let version_text = self.nv.version.to_string();
-    let scheme_with_colon = kind.scheme_with_colon();
-    let capacity = scheme_with_colon.len() + 1 /* slash */
-      + self.nv.name.len()
-      + 1 /* @ */
-      + version_text.len()
-      + self.sub_path.as_ref().map(|p| p.len() + 1 /* slash */).unwrap_or(0);
-    let mut text = String::with_capacity(capacity);
-    text.push_str(scheme_with_colon);
-    text.push('/');
-    text.push_str(&self.nv.name);
-    text.push('@');
-    text.push_str(&version_text);
-    if let Some(sub_path) = &self.sub_path {
-      text.push('/');
-      text.push_str(sub_path);
-    }
-    debug_assert_eq!(text.len(), capacity);
+    let text = StringBuilder::<String>::build(|builder| {
+      builder.append(kind.scheme_with_colon());
+      builder.append('/');
+      builder.append(&self.nv.name);
+      builder.append('@');
+      builder.append(&self.nv.version);
+      if let Some(sub_path) = &self.sub_path {
+        builder.append('/');
+        builder.append(sub_path);
+      }
+    })
+    .unwrap();
     Url::parse(&text).unwrap()
   }
 }
@@ -566,9 +574,9 @@ pub struct PackageNvParseError {
   pub text: String,
 }
 
-#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, FastDisplay)]
+#[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, CapacityDisplay)]
 pub struct PackageNv {
-  pub name: String,
+  pub name: PackageName,
   pub version: Version,
 }
 
@@ -604,7 +612,7 @@ impl<'de> Deserialize<'de> for PackageNv {
   where
     D: serde::Deserializer<'de>,
   {
-    let text = String::deserialize(deserializer)?;
+    let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
     match Self::from_str(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
@@ -625,7 +633,7 @@ impl PackageNv {
 
   pub fn scope(&self) -> Option<&str> {
     if self.name.starts_with('@') {
-      self.name.split('/').next()
+      self.name.as_str().split('/').next()
     } else {
       None
     }
@@ -659,7 +667,7 @@ fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
     Ok(version) => Ok((
       input,
       PackageNv {
-        name: name.to_string(),
+        name: name.into(),
         version,
       },
     )),
