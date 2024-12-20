@@ -16,9 +16,13 @@ serde = { version = "1.0.130", features = ["derive", "rc"] }
 thiserror = "2"
 url = "2.5.3"
 deno_error = "0.5.1"
+capacity_builder = { version = "0.5.0", features = ["ecow"] }
+ecow = { version = "0.2.3", features = ["serde"] }
+
+# todo(dsherret): remove after https://github.com/polazarus/hipstr/pull/39 is released
+[target.'cfg(any(unix, windows))'.dependencies]
 capacity_builder = { version = "0.5.0", features = ["ecow", "hipstr"] }
 hipstr = "0.6"
-ecow = { version = "0.2.3", features = ["serde"] }
 
 [dev-dependencies]
 divan = "0.1.17"
