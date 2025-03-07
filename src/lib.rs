@@ -202,7 +202,10 @@ impl std::cmp::Ord for Version {
         // prefer numbers
         if let Ok(a_num) = a.parse::<u64>() {
           if let Ok(b_num) = b.parse::<u64>() {
-            return a_num.cmp(&b_num);
+            let cmp_result = a_num.cmp(&b_num);
+            if cmp_result != Ordering::Equal {
+              return cmp_result;
+            }
           } else {
             return Ordering::Less;
           }
