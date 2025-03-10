@@ -443,6 +443,13 @@ mod test {
     assert_eq!(cmp("0.0.0", "0.0.0-pre"), Ordering::Greater);
     assert_eq!(cmp("0.0.0-a", "0.0.0-b"), Ordering::Less);
     assert_eq!(cmp("0.0.0-a", "0.0.0-a"), Ordering::Equal);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0-rc.3.0.6"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0-rc.3.1.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.1.0", "2.0.0-rc.3.0.5"), Ordering::Greater);
+    assert_eq!(cmp("2.0.0-rc.3.1.0", "2.0.0-rc.3.1.0"), Ordering::Equal);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.1.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0", "2.0.0-rc.3.0.5"), Ordering::Greater);
   }
 
   #[test]
