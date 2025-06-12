@@ -1,6 +1,6 @@
 [package]
 name = "deno_semver"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2021"
 description = "Semver for Deno"
 homepage = "https://deno.land/"
@@ -15,7 +15,7 @@ once_cell = "1.17.0"
 serde = { version = "1.0.130", features = ["derive", "rc"] }
 thiserror = "2"
 url = "2.5.3"
-deno_error = "0.5.1"
+deno_error = "0.6.0"
 capacity_builder = { version = "0.5.0", features = ["ecow"] }
 ecow = { version = "0.2.3", features = ["serde"] }
 
