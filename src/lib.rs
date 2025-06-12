@@ -129,6 +129,25 @@ impl Version {
   ) -> Result<Version, npm::NpmVersionParseError> {
     npm::parse_npm_version(text)
   }
+
+  /// Creates a version requirement that's pinned to this version.
+  pub fn into_version_req(self) -> VersionReq {
+    VersionReq {
+      raw_text: self.to_custom_string(),
+      inner: RangeSetOrTag::RangeSet(VersionRangeSet(CowVec::from([
+        VersionRange {
+          start: RangeBound::Version(VersionBound {
+            kind: VersionBoundKind::Inclusive,
+            version: self.clone(),
+          }),
+          end: RangeBound::Version(VersionBound {
+            kind: VersionBoundKind::Inclusive,
+            version: self,
+          }),
+        },
+      ]))),
+    }
+  }
 }
 
 impl std::cmp::PartialOrd for Version {
@@ -421,5 +440,15 @@ mod test {
     assert_eq!(cmp("0.0.0", "0.0.0-pre"), Ordering::Greater);
     assert_eq!(cmp("0.0.0-a", "0.0.0-b"), Ordering::Less);
     assert_eq!(cmp("0.0.0-a", "0.0.0-a"), Ordering::Equal);
+  }
+
+  #[test]
+  fn version_req_from_version() {
+    let version = Version::parse_from_npm("1.2.3").unwrap();
+    let version_req = version.into_version_req();
+
+    assert!(!version_req.matches(&Version::parse_from_npm("1.2.2").unwrap()));
+    assert!(version_req.matches(&Version::parse_from_npm("1.2.3").unwrap()));
+    assert!(!version_req.matches(&Version::parse_from_npm("1.2.4").unwrap()));
   }
 }

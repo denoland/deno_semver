@@ -638,6 +638,14 @@ impl PackageNv {
       None
     }
   }
+
+  /// Converts the package nv into a package requirement.
+  pub fn into_package_req(self) -> PackageReq {
+    PackageReq {
+      name: self.name,
+      version_req: self.version.into_version_req(),
+    }
+  }
 }
 
 fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
