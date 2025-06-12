@@ -131,7 +131,7 @@ impl Version {
   }
 
   /// Creates a version requirement that's pinned to this version.
-  pub fn into_version_req(self) -> VersionReq {
+  pub fn into_req(self) -> VersionReq {
     VersionReq {
       raw_text: self.to_custom_string(),
       inner: RangeSetOrTag::RangeSet(VersionRangeSet(CowVec::from([
@@ -445,7 +445,7 @@ mod test {
   #[test]
   fn version_req_from_version() {
     let version = Version::parse_from_npm("1.2.3").unwrap();
-    let version_req = version.into_version_req();
+    let version_req = version.into_req();
 
     assert!(!version_req.matches(&Version::parse_from_npm("1.2.2").unwrap()));
     assert!(version_req.matches(&Version::parse_from_npm("1.2.3").unwrap()));

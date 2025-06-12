@@ -640,10 +640,10 @@ impl PackageNv {
   }
 
   /// Converts the package nv into a package requirement.
-  pub fn into_package_req(self) -> PackageReq {
+  pub fn into_req(self) -> PackageReq {
     PackageReq {
       name: self.name,
-      version_req: self.version.into_version_req(),
+      version_req: self.version.into_req(),
     }
   }
 }
