@@ -128,16 +128,17 @@ impl PackageReqReference {
 
     if let Some(sub_path) = &sub_path
       && req.version_req.version_text() == "*"
-        && let Some(at_index) = sub_path.rfind('@') {
-          let (new_sub_path, version) = sub_path.split_at(at_index);
-          return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
-            Box::new(PackageReqReferenceInvalidWithVersionParseError {
-              kind,
-              current: format!("{req}/{sub_path}"),
-              suggested: format!("{req}{version}/{new_sub_path}"),
-            }),
-          ));
-        }
+      && let Some(at_index) = sub_path.rfind('@')
+    {
+      let (new_sub_path, version) = sub_path.split_at(at_index);
+      return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
+        Box::new(PackageReqReferenceInvalidWithVersionParseError {
+          kind,
+          current: format!("{req}/{sub_path}"),
+          suggested: format!("{req}{version}/{new_sub_path}"),
+        }),
+      ));
+    }
 
     Ok(Self { req, sub_path })
   }

@@ -119,12 +119,12 @@ impl RangeBound {
   ) -> bool {
     if let RangeBound::Version(self_version) = &self
       && !self_version.version.pre.is_empty()
-        && self_version.version.major == version.major
-        && self_version.version.minor == version.minor
-        && self_version.version.patch == version.patch
-      {
-        return true;
-      }
+      && self_version.version.major == version.major
+      && self_version.version.minor == version.minor
+      && self_version.version.patch == version.patch
+    {
+      return true;
+    }
     false
   }
 }
@@ -263,20 +263,22 @@ impl<'a> StringAppendable<'a> for &'a VersionRange {
               if end.version.minor == 0 && start.version.minor == 0 {
                 if let Some(one_major_higher) =
                   start.version.major.checked_add(1)
-                  && end.version.major == one_major_higher {
-                    builder.append(start.version.major);
-                    return;
-                  }
+                  && end.version.major == one_major_higher
+                {
+                  builder.append(start.version.major);
+                  return;
+                }
               } else if start.version.major == end.version.major {
                 // check if we can write out `~1.1.0` as `1.1`
                 if let Some(one_minor_higher) =
                   start.version.minor.checked_add(1)
-                  && end.version.minor == one_minor_higher {
-                    builder.append(start.version.major);
-                    builder.append('.');
-                    builder.append(start.version.minor);
-                    return;
-                  }
+                  && end.version.minor == one_minor_higher
+                {
+                  builder.append(start.version.major);
+                  builder.append('.');
+                  builder.append(start.version.minor);
+                  return;
+                }
               }
             }
 
