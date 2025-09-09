@@ -13,9 +13,6 @@ use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
 
-use crate::npm::NpmVersionReqParseError;
-use crate::range::RangeBound;
-use crate::range::VersionBound;
 use crate::RangeSetOrTag;
 use crate::Version;
 use crate::VersionBoundKind;
@@ -24,6 +21,9 @@ use crate::VersionRangeSet;
 use crate::VersionReq;
 use crate::VersionReqSpecifierParseError;
 use crate::WILDCARD_VERSION_REQ;
+use crate::npm::NpmVersionReqParseError;
+use crate::range::RangeBound;
+use crate::range::VersionBound;
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum PackageKind {
@@ -126,9 +126,9 @@ impl PackageReqReference {
       Some(PackageSubPath::from_str(sub_path))
     };
 
-    if let Some(sub_path) = &sub_path {
-      if req.version_req.version_text() == "*" {
-        if let Some(at_index) = sub_path.rfind('@') {
+    if let Some(sub_path) = &sub_path
+      && req.version_req.version_text() == "*"
+        && let Some(at_index) = sub_path.rfind('@') {
           let (new_sub_path, version) = sub_path.split_at(at_index);
           return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
             Box::new(PackageReqReferenceInvalidWithVersionParseError {
@@ -138,8 +138,6 @@ impl PackageReqReference {
             }),
           ));
         }
-      }
-    }
 
     Ok(Self { req, sub_path })
   }
@@ -505,7 +503,7 @@ impl PackageNvReference {
   ) -> Result<Self, PackageNvReferenceParseError> {
     use monch::*;
 
-    fn sub_path(input: &str) -> ParseResult<&str> {
+    fn sub_path(input: &str) -> ParseResult<'_, &str> {
       let (input, _) = ch('/')(input)?;
       Ok(("", input))
     }
@@ -648,10 +646,10 @@ impl PackageNv {
   }
 }
 
-fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
+fn parse_nv(input: &str) -> monch::ParseResult<'_, PackageNv> {
   use monch::*;
 
-  fn parse_name(input: &str) -> ParseResult<&str> {
+  fn parse_name(input: &str) -> ParseResult<'_, &str> {
     if_not_empty(substring(move |input| {
       for (pos, c) in input.char_indices() {
         // first character might be a scope, so skip it
@@ -663,7 +661,7 @@ fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
     }))(input)
   }
 
-  fn parse_version(input: &str) -> ParseResult<&str> {
+  fn parse_version(input: &str) -> ParseResult<'_, &str> {
     if_not_empty(substring(skip_while(|c| !matches!(c, '_' | '/'))))(input)
   }
 

@@ -3,15 +3,15 @@
 use monch::*;
 use thiserror::Error;
 
-use crate::range::Partial;
-use crate::range::VersionRange;
-use crate::range::VersionRangeSet;
-use crate::range::XRange;
 use crate::CowVec;
 use crate::PackageTag;
 use crate::RangeSetOrTag;
 use crate::VersionPreOrBuild;
 use crate::VersionReq;
+use crate::range::Partial;
+use crate::range::VersionRange;
+use crate::range::VersionRangeSet;
+use crate::range::XRange;
 
 use crate::is_valid_tag;
 
@@ -67,7 +67,7 @@ pub fn parse_version_req_from_specifier(
 // which is Copyright (c) Isaac Z. Schlueter and Contributors (ISC License)
 
 // version_range ::= partial | tilde | caret
-fn version_range(input: &str) -> ParseResult<VersionRange> {
+fn version_range(input: &str) -> ParseResult<'_, VersionRange> {
   or3(
     map(preceded(ch('~'), partial), |partial| {
       partial.as_tilde_version_range()
@@ -80,7 +80,7 @@ fn version_range(input: &str) -> ParseResult<VersionRange> {
 }
 
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
-fn partial(input: &str) -> ParseResult<Partial> {
+fn partial(input: &str) -> ParseResult<'_, Partial> {
   let (input, major) = xr()(input)?;
   let (input, maybe_minor) = maybe(preceded(ch('.'), xr()))(input)?;
   let (input, maybe_patch) = if maybe_minor.is_some() {
@@ -115,7 +115,7 @@ fn xr<'a>() -> impl Fn(&'a str) -> ParseResult<'a, XRange> {
 }
 
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
-fn nr(input: &str) -> ParseResult<u64> {
+fn nr(input: &str) -> ParseResult<'_, u64> {
   or(map(tag("0"), |_| 0), move |input| {
     let (input, result) = if_not_empty(substring(pair(
       if_true(next_char, |c| c.is_ascii_digit() && *c != '0'),
@@ -127,7 +127,7 @@ fn nr(input: &str) -> ParseResult<u64> {
         return ParseError::fail(
           input,
           format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-        )
+        );
       }
     };
     Ok((input, val))
@@ -141,7 +141,7 @@ struct Qualifier {
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
-fn qualifier(input: &str) -> ParseResult<Qualifier> {
+fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
   let (input, pre_parts) = maybe(pre)(input)?;
   let (input, build_parts) = maybe(build)(input)?;
   Ok((
@@ -154,17 +154,17 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn pre(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(ch('-'), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
@@ -177,7 +177,7 @@ fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
 }
 
 // part ::= nr | [-0-9A-Za-z]+
-fn part(input: &str) -> ParseResult<&str> {
+fn part(input: &str) -> ParseResult<'_, &str> {
   // nr is in the other set, so don't bother checking for it
   if_true(
     take_while(|c| c.is_ascii_alphanumeric() || c == '-'),

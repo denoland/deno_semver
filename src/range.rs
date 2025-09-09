@@ -117,15 +117,14 @@ impl RangeBound {
     &self,
     version: &Version,
   ) -> bool {
-    if let RangeBound::Version(self_version) = &self {
-      if !self_version.version.pre.is_empty()
+    if let RangeBound::Version(self_version) = &self
+      && !self_version.version.pre.is_empty()
         && self_version.version.major == version.major
         && self_version.version.minor == version.minor
         && self_version.version.patch == version.patch
       {
         return true;
       }
-    }
     false
   }
 }
@@ -264,24 +263,20 @@ impl<'a> StringAppendable<'a> for &'a VersionRange {
               if end.version.minor == 0 && start.version.minor == 0 {
                 if let Some(one_major_higher) =
                   start.version.major.checked_add(1)
-                {
-                  if end.version.major == one_major_higher {
+                  && end.version.major == one_major_higher {
                     builder.append(start.version.major);
                     return;
                   }
-                }
               } else if start.version.major == end.version.major {
                 // check if we can write out `~1.1.0` as `1.1`
                 if let Some(one_minor_higher) =
                   start.version.minor.checked_add(1)
-                {
-                  if end.version.minor == one_minor_higher {
+                  && end.version.minor == one_minor_higher {
                     builder.append(start.version.major);
                     builder.append('.');
                     builder.append(start.version.minor);
                     return;
                   }
-                }
               }
             }
 
@@ -649,19 +644,19 @@ impl Partial {
   pub fn as_equal_range(&self) -> VersionRange {
     let major = match self.major {
       XRange::Wildcard => {
-        return self.as_greater_range(VersionBoundKind::Inclusive)
+        return self.as_greater_range(VersionBoundKind::Inclusive);
       }
       XRange::Val(val) => val,
     };
     let minor = match self.minor {
       XRange::Wildcard => {
-        return self.as_greater_range(VersionBoundKind::Inclusive)
+        return self.as_greater_range(VersionBoundKind::Inclusive);
       }
       XRange::Val(val) => val,
     };
     let patch = match self.patch {
       XRange::Wildcard => {
-        return self.as_greater_range(VersionBoundKind::Inclusive)
+        return self.as_greater_range(VersionBoundKind::Inclusive);
       }
       XRange::Val(val) => val,
     };

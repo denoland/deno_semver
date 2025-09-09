@@ -13,6 +13,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
 
+use crate::CowVec;
+use crate::PackageTag;
+use crate::VersionPreOrBuild;
 use crate::package::PackageKind;
 use crate::package::PackageNv;
 use crate::package::PackageNvReference;
@@ -20,9 +23,6 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
-use crate::CowVec;
-use crate::PackageTag;
-use crate::VersionPreOrBuild;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -134,7 +134,7 @@ pub fn parse_npm_version_req(
 // part       ::= nr | [-0-9A-Za-z]+
 
 // range-set ::= range ( logical-or range ) *
-fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
+fn inner(input: &str) -> ParseResult<'_, RangeSetOrTag> {
   if input.is_empty() {
     return Ok((
       input,
@@ -198,7 +198,7 @@ struct InvalidRange<'a> {
   text: &'a str,
 }
 
-fn range_or_invalid(input: &str) -> ParseResult<RangeOrInvalid> {
+fn range_or_invalid(input: &str) -> ParseResult<'_, RangeOrInvalid<'_>> {
   let range_result =
     map_res(map(range, RangeOrInvalid::Range), |result| match result {
       Ok((input, range)) => {
@@ -223,14 +223,14 @@ fn range_or_invalid(input: &str) -> ParseResult<RangeOrInvalid> {
   }
 }
 
-fn invalid_range(input: &str) -> ParseResult<&str> {
+fn invalid_range(input: &str) -> ParseResult<'_, &str> {
   let end_index = input.find("||").unwrap_or(input.len());
   let text = input[..end_index].trim();
   Ok((&input[end_index..], text))
 }
 
 // range ::= hyphen | simple ( ' ' simple ) * | ''
-fn range(input: &str) -> ParseResult<VersionRange> {
+fn range(input: &str) -> ParseResult<'_, VersionRange> {
   or(
     map(hyphen, |hyphen| VersionRange {
       start: hyphen.start.as_lower_bound(),
@@ -246,8 +246,8 @@ fn range(input: &str) -> ParseResult<VersionRange> {
   )(input)
 }
 
-fn range_separator(input: &str) -> ParseResult<()> {
-  fn comma(input: &str) -> ParseResult<()> {
+fn range_separator(input: &str) -> ParseResult<'_, ()> {
+  fn comma(input: &str) -> ParseResult<'_, ()> {
     map(delimited(skip_whitespace, ch(','), skip_whitespace), |_| ())(input)
   }
 
@@ -261,7 +261,7 @@ struct Hyphen {
 }
 
 // hyphen ::= partial ' - ' partial
-fn hyphen(input: &str) -> ParseResult<Hyphen> {
+fn hyphen(input: &str) -> ParseResult<'_, Hyphen> {
   let (input, first) = partial(input)?;
   let (input, _) = whitespace(input)?;
   let (input, _) = tag("-")(input)?;
@@ -277,16 +277,16 @@ fn hyphen(input: &str) -> ParseResult<Hyphen> {
 }
 
 // logical-or ::= ( ' ' ) * '||' ( ' ' ) *
-fn logical_or(input: &str) -> ParseResult<&str> {
+fn logical_or(input: &str) -> ParseResult<'_, &str> {
   delimited(skip_whitespace, tag("||"), skip_whitespace)(input)
 }
 
 // logical-and ::= ( ' ' ) * '&&' ( ' ' ) *
-fn logical_and(input: &str) -> ParseResult<&str> {
+fn logical_and(input: &str) -> ParseResult<'_, &str> {
   delimited(skip_whitespace, tag("&&"), skip_whitespace)(input)
 }
 
-fn skip_whitespace_or_v(input: &str) -> ParseResult<()> {
+fn skip_whitespace_or_v(input: &str) -> ParseResult<'_, ()> {
   map(
     pair(skip_whitespace, pair(maybe(ch('v')), skip_whitespace)),
     |_| (),
@@ -294,7 +294,7 @@ fn skip_whitespace_or_v(input: &str) -> ParseResult<()> {
 }
 
 // simple ::= primitive | partial | tilde | caret
-fn simple(input: &str) -> ParseResult<VersionRange> {
+fn simple(input: &str) -> ParseResult<'_, VersionRange> {
   or4(
     map(preceded(tilde, partial), |partial| {
       partial.as_tilde_version_range()
@@ -324,8 +324,8 @@ fn simple(input: &str) -> ParseResult<VersionRange> {
   )(input)
 }
 
-fn tilde(input: &str) -> ParseResult<()> {
-  fn raw_tilde(input: &str) -> ParseResult<()> {
+fn tilde(input: &str) -> ParseResult<'_, ()> {
+  fn raw_tilde(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
         terminated(or(tag("~>"), tag("~")), skip_while(|c| c == '=')),
@@ -341,8 +341,8 @@ fn tilde(input: &str) -> ParseResult<()> {
   )(input)
 }
 
-fn caret(input: &str) -> ParseResult<()> {
-  fn raw_caret(input: &str) -> ParseResult<()> {
+fn caret(input: &str) -> ParseResult<'_, ()> {
+  fn raw_caret(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
         terminated(tag("^"), skip_while(|c| c == '=')),
@@ -373,14 +373,14 @@ struct Primitive {
   partial: Partial,
 }
 
-fn primitive(input: &str) -> ParseResult<Primitive> {
+fn primitive(input: &str) -> ParseResult<'_, Primitive> {
   let (input, kind) = primitive_kind(input)?;
   let (input, _) = skip_whitespace(input)?;
   let (input, partial) = partial(input)?;
   Ok((input, Primitive { kind, partial }))
 }
 
-fn primitive_kind(input: &str) -> ParseResult<PrimitiveKind> {
+fn primitive_kind(input: &str) -> ParseResult<'_, PrimitiveKind> {
   or5(
     map(tag(">="), |_| PrimitiveKind::GreaterThanOrEqual),
     map(tag("<="), |_| PrimitiveKind::LessThanOrEqual),
@@ -391,7 +391,7 @@ fn primitive_kind(input: &str) -> ParseResult<PrimitiveKind> {
 }
 
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
-fn partial(input: &str) -> ParseResult<Partial> {
+fn partial(input: &str) -> ParseResult<'_, Partial> {
   let (input, _) = maybe(ch('v'))(input)?; // skip leading v
   let (input, major) = xr()(input)?;
   let (input, maybe_minor) = maybe(preceded(ch('.'), xr()))(input)?;
@@ -427,7 +427,7 @@ fn xr<'a>() -> impl Fn(&'a str) -> ParseResult<'a, XRange> {
 }
 
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
-fn nr(input: &str) -> ParseResult<u64> {
+fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
   let (input, result) =
     if_not_empty(substring(skip_while(|c| c.is_ascii_digit())))(input)?;
@@ -437,7 +437,7 @@ fn nr(input: &str) -> ParseResult<u64> {
       return ParseError::fail(
         input,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-      )
+      );
     }
   };
   Ok((input, val))
@@ -450,7 +450,7 @@ struct Qualifier {
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
-fn qualifier(input: &str) -> ParseResult<Qualifier> {
+fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
   let (input, pre_parts) = maybe(pre)(input)?;
   let (input, build_parts) = maybe(build)(input)?;
   Ok((
@@ -463,17 +463,17 @@ fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn pre(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
@@ -486,7 +486,7 @@ fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
 }
 
 // part ::= nr | [-0-9A-Za-z]+
-fn part(input: &str) -> ParseResult<&str> {
+fn part(input: &str) -> ParseResult<'_, &str> {
   // nr is in the other set, so don't bother checking for it
   if_true(
     take_while(|c| c.is_ascii_alphanumeric() || c == '-'),
