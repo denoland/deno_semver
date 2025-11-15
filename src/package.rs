@@ -13,7 +13,6 @@ use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
 
-use crate::VersionReqNormalizedParseError;
 use crate::npm::NpmVersionReqParseError;
 use crate::range::RangeBound;
 use crate::range::VersionBound;
@@ -23,6 +22,7 @@ use crate::VersionBoundKind;
 use crate::VersionRange;
 use crate::VersionRangeSet;
 use crate::VersionReq;
+use crate::VersionReqNormalizedParseError;
 use crate::VersionReqSpecifierParseError;
 use crate::WILDCARD_VERSION_REQ;
 
@@ -223,7 +223,8 @@ impl PackageReq {
     text: &str,
     parse_with_path: impl FnOnce(
       &str,
-    ) -> Result<(Self, &str), PackageReqPartsParseError>,
+    )
+      -> Result<(Self, &str), PackageReqPartsParseError>,
   ) -> Result<Self, PackageReqParseError> {
     fn inner(
       text: &str,

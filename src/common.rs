@@ -20,7 +20,9 @@ pub fn logical_and(input: &str) -> ParseResult<&str> {
 }
 
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
-pub fn partial<'a>(xr: impl Fn(&'a str) -> ParseResult<'a, XRange>) -> impl Fn(&'a str) -> ParseResult<'a, Partial> {
+pub fn partial<'a>(
+  xr: impl Fn(&'a str) -> ParseResult<'a, XRange>,
+) -> impl Fn(&'a str) -> ParseResult<'a, Partial> {
   move |input| {
     let (input, major) = xr(input)?;
     let (input, maybe_minor) = maybe(preceded(ch('.'), &xr))(input)?;
@@ -145,7 +147,9 @@ impl Primitive {
   }
 }
 
-pub fn primitive<'a>(partial: impl Fn(&'a str) -> ParseResult<'a, Partial>) -> impl Fn(&'a str) -> ParseResult<'a, Primitive> {
+pub fn primitive<'a>(
+  partial: impl Fn(&'a str) -> ParseResult<'a, Partial>,
+) -> impl Fn(&'a str) -> ParseResult<'a, Primitive> {
   move |input| {
     let (input, kind) = primitive_kind(input)?;
     let (input, _) = skip_whitespace(input)?;

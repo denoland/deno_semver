@@ -25,9 +25,9 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
+use crate::range_set_or_tag::RangeOrInvalid;
 use crate::CowVec;
 use crate::PackageTag;
-use crate::range_set_or_tag::RangeOrInvalid;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -148,8 +148,10 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
     ));
   }
 
-  let (input, mut ranges) =
-    separated_list(|text| RangeOrInvalid::parse(text, range), logical_or)(input)?;
+  let (input, mut ranges) = separated_list(
+    |text| RangeOrInvalid::parse(text, range),
+    logical_or,
+  )(input)?;
 
   if ranges.len() == 1 {
     match ranges.remove(0) {

@@ -17,6 +17,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
+mod common;
 pub mod jsr;
 pub mod npm;
 pub mod package;
@@ -24,15 +25,14 @@ mod range;
 mod range_set_or_tag;
 mod specifier;
 mod string;
-mod common;
 
 /// A smaller two-byte vector.
 pub type CowVec<T> = ecow::EcoVec<T>;
 pub use string::SmallStackString;
 pub use string::StackString;
 
-pub use self::specifier::VersionReqSpecifierParseError;
 pub use self::specifier::VersionReqNormalizedParseError;
+pub use self::specifier::VersionReqSpecifierParseError;
 
 pub use self::range::Partial;
 pub use self::range::RangeBound;
