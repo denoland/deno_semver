@@ -31,7 +31,6 @@ pub type CowVec<T> = ecow::EcoVec<T>;
 pub use string::SmallStackString;
 pub use string::StackString;
 
-pub use self::specifier::VersionReqNormalizedParseError;
 pub use self::specifier::VersionReqSpecifierParseError;
 
 pub use self::range::Partial;
@@ -230,6 +229,14 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
   npm::is_valid_npm_tag(value)
 }
 
+#[derive(Error, Debug, Clone, deno_error::JsError, PartialEq, Eq)]
+#[class(type)]
+#[error("Invalid normalized version requirement")]
+pub struct VersionReqNormalizedParseError {
+  #[source]
+  source: monch::ParseErrorFailureError,
+}
+
 /// A version constraint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionReq {
@@ -261,9 +268,19 @@ impl VersionReq {
   }
 
   pub fn parse_from_normalized(
-    specifier: &str,
+    text: &str,
   ) -> Result<Self, VersionReqNormalizedParseError> {
-    specifier::parse_version_req_from_normalized(specifier)
+    use monch::*;
+
+    with_failure_handling(|input| {
+      map(RangeSetOrTag::parse, |inner| {
+        VersionReq::from_raw_text_and_inner(
+          crate::SmallStackString::from_str(input),
+          inner,
+        )
+      })(input)
+    })(text)
+    .map_err(|err| VersionReqNormalizedParseError { source: err })
   }
 
   pub fn parse_from_specifier(
