@@ -711,6 +711,21 @@ mod test {
   }
 
   #[test]
+  fn test_package_req_deserializable() {
+    fn run_test(text: &str) {
+      let start = PackageReq::from_str_loose(text).unwrap();
+      let value = serde_json::to_value(&start).unwrap();
+      let deserialized: PackageReq = serde_json::from_value(value).unwrap();
+      assert_eq!(deserialized, start);
+    }
+
+    run_test("a@1");
+    run_test("a@1");
+    run_test("a@1 - 1.5");
+    run_test("a@1 || 2 || 3");
+  }
+
+  #[test]
   fn sorting_package_reqs() {
     fn cmp_req(a: &str, b: &str) -> Ordering {
       let a = PackageReq::from_str_loose(a).unwrap();
