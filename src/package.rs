@@ -700,10 +700,13 @@ mod test {
 
   #[test]
   fn serialize_deserialize_tag_package_req_with_v() {
+    // note: this specifier is a tag and not a version
     let package_req = PackageReq::from_str("test@v1.0").unwrap();
+    assert!(package_req.version_req.tag().is_some());
     let json = serde_json::to_string(&package_req).unwrap();
     assert_eq!(json, "\"test@v1.0\"");
     let result = serde_json::from_str::<PackageReq>(&json).unwrap();
+    assert!(result.version_req.tag().is_some());
     assert_eq!(result, package_req);
   }
 
