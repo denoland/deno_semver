@@ -206,7 +206,10 @@ impl std::cmp::Ord for Version {
         // prefer numbers
         if let Ok(a_num) = a.parse::<u64>() {
           if let Ok(b_num) = b.parse::<u64>() {
-            return a_num.cmp(&b_num);
+            let cmp_result = a_num.cmp(&b_num);
+            if cmp_result != Ordering::Equal {
+              return cmp_result;
+            }
           } else {
             return Ordering::Less;
           }
@@ -433,6 +436,13 @@ mod test {
     assert_eq!(cmp("0.0.0", "0.0.0-pre"), Ordering::Greater);
     assert_eq!(cmp("0.0.0-a", "0.0.0-b"), Ordering::Less);
     assert_eq!(cmp("0.0.0-a", "0.0.0-a"), Ordering::Equal);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0-rc.3.0.6"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0-rc.3.1.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.1.0", "2.0.0-rc.3.0.5"), Ordering::Greater);
+    assert_eq!(cmp("2.0.0-rc.3.1.0", "2.0.0-rc.3.1.0"), Ordering::Equal);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.0.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0-rc.3.0.5", "2.1.0"), Ordering::Less);
+    assert_eq!(cmp("2.0.0", "2.0.0-rc.3.0.5"), Ordering::Greater);
   }
 
   #[test]
