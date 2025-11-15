@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use monch::*;
 
@@ -10,12 +10,12 @@ use crate::VersionRange;
 use crate::XRange;
 
 // logical-or ::= ( ' ' ) * '||' ( ' ' ) *
-pub fn logical_or(input: &str) -> ParseResult<&str> {
+pub fn logical_or(input: &str) -> ParseResult<'_, &str> {
   delimited(skip_whitespace, tag("||"), skip_whitespace)(input)
 }
 
 // logical-and ::= ( ' ' ) * '&&' ( ' ' ) *
-pub fn logical_and(input: &str) -> ParseResult<&str> {
+pub fn logical_and(input: &str) -> ParseResult<'_, &str> {
   delimited(skip_whitespace, tag("&&"), skip_whitespace)(input)
 }
 
@@ -57,7 +57,7 @@ pub struct Qualifier {
 }
 
 // qualifier ::= ( '-' pre )? ( '+' build )?
-pub fn qualifier(input: &str) -> ParseResult<Qualifier> {
+pub fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
   let (input, pre_parts) = maybe(pre)(input)?;
   let (input, build_parts) = maybe(build)(input)?;
   Ok((
@@ -70,17 +70,17 @@ pub fn qualifier(input: &str) -> ParseResult<Qualifier> {
 }
 
 // pre ::= parts
-fn pre(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn pre(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(maybe(ch('-')), parts)(input)
 }
 
 // build ::= parts
-fn build(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   preceded(ch('+'), parts)(input)
 }
 
 // parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
+fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
   if_true(
     map(separated_list(part, ch('.')), |text| {
       text
@@ -93,7 +93,7 @@ fn parts(input: &str) -> ParseResult<CowVec<VersionPreOrBuild>> {
 }
 
 // part ::= nr | [-0-9A-Za-z]+
-fn part(input: &str) -> ParseResult<&str> {
+fn part(input: &str) -> ParseResult<'_, &str> {
   // nr is in the other set, so don't bother checking for it
   if_true(
     take_while(|c| c.is_ascii_alphanumeric() || c == '-'),
@@ -110,7 +110,7 @@ pub enum PrimitiveKind {
   Equal,
 }
 
-pub fn primitive_kind(input: &str) -> ParseResult<PrimitiveKind> {
+pub fn primitive_kind(input: &str) -> ParseResult<'_, PrimitiveKind> {
   or5(
     map(tag(">="), |_| PrimitiveKind::GreaterThanOrEqual),
     map(tag("<="), |_| PrimitiveKind::LessThanOrEqual),

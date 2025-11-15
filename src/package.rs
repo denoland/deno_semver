@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use capacity_builder::CapacityDisplay;
 use capacity_builder::StringAppendable;
@@ -522,7 +522,7 @@ impl PackageNvReference {
   ) -> Result<Self, PackageNvReferenceParseError> {
     use monch::*;
 
-    fn sub_path(input: &str) -> ParseResult<&str> {
+    fn sub_path(input: &str) -> ParseResult<'_, &str> {
       let (input, _) = ch('/')(input)?;
       Ok(("", input))
     }
@@ -665,10 +665,10 @@ impl PackageNv {
   }
 }
 
-fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
+fn parse_nv(input: &str) -> monch::ParseResult<'_, PackageNv> {
   use monch::*;
 
-  fn parse_name(input: &str) -> ParseResult<&str> {
+  fn parse_name(input: &str) -> ParseResult<'_, &str> {
     if_not_empty(substring(move |input| {
       for (pos, c) in input.char_indices() {
         // first character might be a scope, so skip it
@@ -680,7 +680,7 @@ fn parse_nv(input: &str) -> monch::ParseResult<PackageNv> {
     }))(input)
   }
 
-  fn parse_version(input: &str) -> ParseResult<&str> {
+  fn parse_version(input: &str) -> ParseResult<'_, &str> {
     if_not_empty(substring(skip_while(|c| !matches!(c, '_' | '/'))))(input)
   }
 

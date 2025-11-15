@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Cow;
 
@@ -138,7 +138,7 @@ pub fn parse_npm_version_req(
 // part       ::= nr | [-0-9A-Za-z]+
 
 // range-set ::= range ( logical-or range ) *
-fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
+fn inner(input: &str) -> ParseResult<'_, RangeSetOrTag> {
   if input.is_empty() {
     return Ok((
       input,
@@ -180,7 +180,7 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
 }
 
 // range ::= hyphen | simple ( ' ' simple ) * | ''
-fn range(input: &str) -> ParseResult<VersionRange> {
+fn range(input: &str) -> ParseResult<'_, VersionRange> {
   or(
     map(hyphen, |hyphen| VersionRange {
       start: hyphen.start.as_lower_bound(),
@@ -196,8 +196,8 @@ fn range(input: &str) -> ParseResult<VersionRange> {
   )(input)
 }
 
-fn range_separator(input: &str) -> ParseResult<()> {
-  fn comma(input: &str) -> ParseResult<()> {
+fn range_separator(input: &str) -> ParseResult<'_, ()> {
+  fn comma(input: &str) -> ParseResult<'_, ()> {
     map(delimited(skip_whitespace, ch(','), skip_whitespace), |_| ())(input)
   }
 
@@ -211,7 +211,7 @@ struct Hyphen {
 }
 
 // hyphen ::= partial ' - ' partial
-fn hyphen(input: &str) -> ParseResult<Hyphen> {
+fn hyphen(input: &str) -> ParseResult<'_, Hyphen> {
   let (input, first) = partial(input)?;
   let (input, _) = whitespace(input)?;
   let (input, _) = tag("-")(input)?;
@@ -226,7 +226,7 @@ fn hyphen(input: &str) -> ParseResult<Hyphen> {
   ))
 }
 
-fn skip_whitespace_or_v(input: &str) -> ParseResult<()> {
+fn skip_whitespace_or_v(input: &str) -> ParseResult<'_, ()> {
   map(
     pair(skip_whitespace, pair(maybe(ch('v')), skip_whitespace)),
     |_| (),
@@ -234,7 +234,7 @@ fn skip_whitespace_or_v(input: &str) -> ParseResult<()> {
 }
 
 // simple ::= primitive | partial | tilde | caret
-fn simple(input: &str) -> ParseResult<VersionRange> {
+fn simple(input: &str) -> ParseResult<'_, VersionRange> {
   or4(
     map(preceded(tilde, partial), |partial| {
       partial.as_tilde_version_range()
@@ -249,8 +249,8 @@ fn simple(input: &str) -> ParseResult<VersionRange> {
   )(input)
 }
 
-fn tilde(input: &str) -> ParseResult<()> {
-  fn raw_tilde(input: &str) -> ParseResult<()> {
+fn tilde(input: &str) -> ParseResult<'_, ()> {
+  fn raw_tilde(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
         terminated(or(tag("~>"), tag("~")), skip_while(|c| c == '=')),
@@ -266,8 +266,8 @@ fn tilde(input: &str) -> ParseResult<()> {
   )(input)
 }
 
-fn caret(input: &str) -> ParseResult<()> {
-  fn raw_caret(input: &str) -> ParseResult<()> {
+fn caret(input: &str) -> ParseResult<'_, ()> {
+  fn raw_caret(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
         terminated(tag("^"), skip_while(|c| c == '=')),
@@ -284,7 +284,7 @@ fn caret(input: &str) -> ParseResult<()> {
 }
 
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
-fn partial(input: &str) -> ParseResult<Partial> {
+fn partial(input: &str) -> ParseResult<'_, Partial> {
   let (input, _) = maybe(ch('v'))(input)?; // skip leading v
   crate::common::partial(xr)(input)
 }
@@ -298,7 +298,7 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
 }
 
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
-fn nr(input: &str) -> ParseResult<u64> {
+fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
   let (input, result) =
     if_not_empty(substring(skip_while(|c| c.is_ascii_digit())))(input)?;
