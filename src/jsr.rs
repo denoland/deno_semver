@@ -213,7 +213,7 @@ impl<'de> Deserialize<'de> for JsrDepPackageReq {
     D: serde::Deserializer<'de>,
   {
     let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
-    match Self::from_str_loose(&text) {
+    match Self::from_str(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -442,5 +442,17 @@ mod test {
     run_test("jsr:a", "jsr:a@*");
     run_test("jsr:a@^1.0", "jsr:a@1");
     run_test("jsr:a@1.2.3 || 1.4.5", "jsr:a@1.2.3 || 1.4.5"); // note: this is the serialized form--it's not a url
+  }
+
+  #[test]
+  fn serialize_deserialize_tag_package_req_with_v() {
+    // note: this specifier is a tag and not a version
+    let package_req = JsrDepPackageReq::from_str("npm:test@v1.0").unwrap();
+    assert!(package_req.req.version_req.tag().is_some());
+    let json = serde_json::to_string(&package_req).unwrap();
+    assert_eq!(json, "\"npm:test@v1.0\"");
+    let result = serde_json::from_str::<JsrDepPackageReq>(&json).unwrap();
+    assert!(result.req.version_req.tag().is_some());
+    assert_eq!(result, package_req);
   }
 }
