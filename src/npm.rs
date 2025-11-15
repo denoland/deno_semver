@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Cow;
 
@@ -13,9 +13,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
 
-use crate::CowVec;
-use crate::PackageTag;
-use crate::VersionPreOrBuild;
+use crate::common::logical_and;
+use crate::common::logical_or;
+use crate::common::primitive;
+use crate::common::primitive_kind;
+use crate::common::qualifier;
 use crate::package::PackageKind;
 use crate::package::PackageNv;
 use crate::package::PackageNvReference;
@@ -23,11 +25,13 @@ use crate::package::PackageNvReferenceParseError;
 use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
+use crate::range_set_or_tag::RangeOrInvalid;
+use crate::CowVec;
+use crate::PackageTag;
 
 use super::Partial;
 use super::RangeSetOrTag;
 use super::Version;
-use super::VersionBoundKind;
 use super::VersionRange;
 use super::VersionRangeSet;
 use super::VersionReq;
@@ -144,8 +148,10 @@ fn inner(input: &str) -> ParseResult<'_, RangeSetOrTag> {
     ));
   }
 
-  let (input, mut ranges) =
-    separated_list(range_or_invalid, logical_or)(input)?;
+  let (input, mut ranges) = separated_list(
+    |text| RangeOrInvalid::parse(text, range),
+    logical_or,
+  )(input)?;
 
   if ranges.len() == 1 {
     match ranges.remove(0) {
@@ -168,65 +174,9 @@ fn inner(input: &str) -> ParseResult<'_, RangeSetOrTag> {
 
   let ranges = ranges
     .into_iter()
-    .filter_map(|r| r.into_range())
+    .filter_map(|r| r.into_range().ok().flatten())
     .collect::<CowVec<_>>();
   Ok((input, RangeSetOrTag::RangeSet(VersionRangeSet(ranges))))
-}
-
-enum RangeOrInvalid<'a> {
-  Range(VersionRange),
-  Invalid(InvalidRange<'a>),
-}
-
-impl RangeOrInvalid<'_> {
-  pub fn into_range(self) -> Option<VersionRange> {
-    match self {
-      RangeOrInvalid::Range(r) => {
-        if r.is_none() {
-          None
-        } else {
-          Some(r)
-        }
-      }
-      RangeOrInvalid::Invalid(_) => None,
-    }
-  }
-}
-
-struct InvalidRange<'a> {
-  failure: ParseError<'a>,
-  text: &'a str,
-}
-
-fn range_or_invalid(input: &str) -> ParseResult<'_, RangeOrInvalid<'_>> {
-  let range_result =
-    map_res(map(range, RangeOrInvalid::Range), |result| match result {
-      Ok((input, range)) => {
-        let is_end = input.is_empty() || logical_or(input).is_ok();
-        if is_end {
-          Ok((input, range))
-        } else {
-          ParseError::backtrace()
-        }
-      }
-      Err(err) => Err(err),
-    })(input);
-  match range_result {
-    Ok(result) => Ok(result),
-    Err(failure) => {
-      let (input, text) = invalid_range(input)?;
-      Ok((
-        input,
-        RangeOrInvalid::Invalid(InvalidRange { failure, text }),
-      ))
-    }
-  }
-}
-
-fn invalid_range(input: &str) -> ParseResult<'_, &str> {
-  let end_index = input.find("||").unwrap_or(input.len());
-  let text = input[..end_index].trim();
-  Ok((&input[end_index..], text))
 }
 
 // range ::= hyphen | simple ( ' ' simple ) * | ''
@@ -276,16 +226,6 @@ fn hyphen(input: &str) -> ParseResult<'_, Hyphen> {
   ))
 }
 
-// logical-or ::= ( ' ' ) * '||' ( ' ' ) *
-fn logical_or(input: &str) -> ParseResult<'_, &str> {
-  delimited(skip_whitespace, tag("||"), skip_whitespace)(input)
-}
-
-// logical-and ::= ( ' ' ) * '&&' ( ' ' ) *
-fn logical_and(input: &str) -> ParseResult<'_, &str> {
-  delimited(skip_whitespace, tag("&&"), skip_whitespace)(input)
-}
-
 fn skip_whitespace_or_v(input: &str) -> ParseResult<'_, ()> {
   map(
     pair(skip_whitespace, pair(maybe(ch('v')), skip_whitespace)),
@@ -302,23 +242,8 @@ fn simple(input: &str) -> ParseResult<'_, VersionRange> {
     map(preceded(caret, partial), |partial| {
       partial.as_caret_version_range()
     }),
-    map(primitive, |primitive| {
-      let partial = primitive.partial;
-      match primitive.kind {
-        PrimitiveKind::Equal => partial.as_equal_range(),
-        PrimitiveKind::GreaterThan => {
-          partial.as_greater_than(VersionBoundKind::Exclusive)
-        }
-        PrimitiveKind::GreaterThanOrEqual => {
-          partial.as_greater_than(VersionBoundKind::Inclusive)
-        }
-        PrimitiveKind::LessThan => {
-          partial.as_less_than(VersionBoundKind::Exclusive)
-        }
-        PrimitiveKind::LessThanOrEqual => {
-          partial.as_less_than(VersionBoundKind::Inclusive)
-        }
-      }
+    map(primitive(partial), |primitive| {
+      primitive.into_version_range()
     }),
     map(partial, |partial| partial.as_equal_range()),
   )(input)
@@ -358,72 +283,18 @@ fn caret(input: &str) -> ParseResult<'_, ()> {
   )(input)
 }
 
-#[derive(Debug, Clone, Copy)]
-enum PrimitiveKind {
-  GreaterThan,
-  LessThan,
-  GreaterThanOrEqual,
-  LessThanOrEqual,
-  Equal,
-}
-
-#[derive(Debug, Clone)]
-struct Primitive {
-  kind: PrimitiveKind,
-  partial: Partial,
-}
-
-fn primitive(input: &str) -> ParseResult<'_, Primitive> {
-  let (input, kind) = primitive_kind(input)?;
-  let (input, _) = skip_whitespace(input)?;
-  let (input, partial) = partial(input)?;
-  Ok((input, Primitive { kind, partial }))
-}
-
-fn primitive_kind(input: &str) -> ParseResult<'_, PrimitiveKind> {
-  or5(
-    map(tag(">="), |_| PrimitiveKind::GreaterThanOrEqual),
-    map(tag("<="), |_| PrimitiveKind::LessThanOrEqual),
-    map(ch('<'), |_| PrimitiveKind::LessThan),
-    map(ch('>'), |_| PrimitiveKind::GreaterThan),
-    map(ch('='), |_| PrimitiveKind::Equal),
-  )(input)
-}
-
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
 fn partial(input: &str) -> ParseResult<'_, Partial> {
   let (input, _) = maybe(ch('v'))(input)?; // skip leading v
-  let (input, major) = xr()(input)?;
-  let (input, maybe_minor) = maybe(preceded(ch('.'), xr()))(input)?;
-  let (input, maybe_patch) = if maybe_minor.is_some() {
-    maybe(preceded(ch('.'), xr()))(input)?
-  } else {
-    (input, None)
-  };
-  let (input, qual) = if maybe_patch.is_some() {
-    maybe(qualifier)(input)?
-  } else {
-    (input, None)
-  };
-  let qual = qual.unwrap_or_default();
-  Ok((
-    input,
-    Partial {
-      major,
-      minor: maybe_minor.unwrap_or(XRange::Wildcard),
-      patch: maybe_patch.unwrap_or(XRange::Wildcard),
-      pre: qual.pre,
-      build: qual.build,
-    },
-  ))
+  crate::common::partial(xr)(input)
 }
 
 // xr ::= 'x' | 'X' | '*' | nr
-fn xr<'a>() -> impl Fn(&'a str) -> ParseResult<'a, XRange> {
+fn xr(input: &str) -> ParseResult<'_, XRange> {
   or(
     map(or3(tag("x"), tag("X"), tag("*")), |_| XRange::Wildcard),
     map(nr, XRange::Val),
-  )
+  )(input)
 }
 
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
@@ -437,61 +308,10 @@ fn nr(input: &str) -> ParseResult<'_, u64> {
       return ParseError::fail(
         input,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-      );
+      )
     }
   };
   Ok((input, val))
-}
-
-#[derive(Debug, Clone, Default)]
-struct Qualifier {
-  pre: CowVec<VersionPreOrBuild>,
-  build: CowVec<VersionPreOrBuild>,
-}
-
-// qualifier ::= ( '-' pre )? ( '+' build )?
-fn qualifier(input: &str) -> ParseResult<'_, Qualifier> {
-  let (input, pre_parts) = maybe(pre)(input)?;
-  let (input, build_parts) = maybe(build)(input)?;
-  Ok((
-    input,
-    Qualifier {
-      pre: pre_parts.unwrap_or_default(),
-      build: build_parts.unwrap_or_default(),
-    },
-  ))
-}
-
-// pre ::= parts
-fn pre(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
-  preceded(maybe(ch('-')), parts)(input)
-}
-
-// build ::= parts
-fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
-  preceded(ch('+'), parts)(input)
-}
-
-// parts ::= part ( '.' part ) *
-fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
-  if_true(
-    map(separated_list(part, ch('.')), |text| {
-      text
-        .into_iter()
-        .map(VersionPreOrBuild::from_str)
-        .collect::<CowVec<_>>()
-    }),
-    |items| !items.is_empty(),
-  )(input)
-}
-
-// part ::= nr | [-0-9A-Za-z]+
-fn part(input: &str) -> ParseResult<'_, &str> {
-  // nr is in the other set, so don't bother checking for it
-  if_true(
-    take_while(|c| c.is_ascii_alphanumeric() || c == '-'),
-    |result| !result.is_empty(),
-  )(input)
 }
 
 /// A reference to an npm package's name, version constraint, and potential sub path.

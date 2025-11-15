@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 #![deny(clippy::print_stderr)]
 #![deny(clippy::print_stdout)]
@@ -17,10 +17,12 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
+mod common;
 pub mod jsr;
 pub mod npm;
 pub mod package;
 mod range;
+mod range_set_or_tag;
 mod specifier;
 mod string;
 
@@ -38,6 +40,8 @@ pub use self::range::VersionBoundKind;
 pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
 pub use self::range::XRange;
+pub use self::range_set_or_tag::PackageTag;
+pub use self::range_set_or_tag::RangeSetOrTag;
 
 /// Specifier that points to the wildcard version.
 pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
@@ -225,39 +229,12 @@ pub(crate) fn is_valid_tag(value: &str) -> bool {
   npm::is_valid_npm_tag(value)
 }
 
-pub type PackageTag = SmallStackString;
-
-#[derive(
-  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
-)]
-pub enum RangeSetOrTag {
-  RangeSet(VersionRangeSet),
-  Tag(PackageTag),
-}
-
-impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
-  fn append_to_builder<TString: StringType>(
-    self,
-    builder: &mut StringBuilder<'a, TString>,
-  ) {
-    match self {
-      RangeSetOrTag::RangeSet(range_set) => builder.append(range_set),
-      RangeSetOrTag::Tag(tag) => builder.append(tag),
-    }
-  }
-}
-
-impl RangeSetOrTag {
-  pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
-    match (self, other) {
-      (RangeSetOrTag::RangeSet(a), RangeSetOrTag::RangeSet(b)) => {
-        a.intersects_set(b)
-      }
-      (RangeSetOrTag::RangeSet(_), RangeSetOrTag::Tag(_))
-      | (RangeSetOrTag::Tag(_), RangeSetOrTag::RangeSet(_)) => false,
-      (RangeSetOrTag::Tag(a), RangeSetOrTag::Tag(b)) => a == b,
-    }
-  }
+#[derive(Error, Debug, Clone, deno_error::JsError, PartialEq, Eq)]
+#[class(type)]
+#[error("Invalid normalized version requirement")]
+pub struct VersionReqNormalizedParseError {
+  #[source]
+  source: monch::ParseErrorFailureError,
 }
 
 /// A version constraint.
@@ -288,6 +265,22 @@ impl VersionReq {
     inner: RangeSetOrTag,
   ) -> Self {
     Self { raw_text, inner }
+  }
+
+  pub fn parse_from_normalized(
+    text: &str,
+  ) -> Result<Self, VersionReqNormalizedParseError> {
+    use monch::*;
+
+    with_failure_handling(|input| {
+      map(RangeSetOrTag::parse, |inner| {
+        VersionReq::from_raw_text_and_inner(
+          crate::SmallStackString::from_str(input),
+          inner,
+        )
+      })(input)
+    })(text)
+    .map_err(|err| VersionReqNormalizedParseError { source: err })
   }
 
   pub fn parse_from_specifier(

@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Cow;
 
@@ -213,7 +213,7 @@ impl<'de> Deserialize<'de> for JsrDepPackageReq {
     D: serde::Deserializer<'de>,
   {
     let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
-    match Self::from_str_loose(&text) {
+    match Self::from_str_normalized(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -240,11 +240,16 @@ impl JsrDepPackageReq {
     Self::from_str_inner(text, PackageReq::from_str)
   }
 
-  #[allow(clippy::should_implement_trait)]
   pub fn from_str_loose(
     text: &str,
   ) -> Result<Self, JsrDepPackageReqParseError> {
     Self::from_str_inner(text, PackageReq::from_str_loose)
+  }
+
+  pub fn from_str_normalized(
+    text: &str,
+  ) -> Result<Self, JsrDepPackageReqParseError> {
+    Self::from_str_inner(text, PackageReq::from_str_normalized)
   }
 
   fn from_str_inner(
@@ -442,5 +447,17 @@ mod test {
     run_test("jsr:a", "jsr:a@*");
     run_test("jsr:a@^1.0", "jsr:a@1");
     run_test("jsr:a@1.2.3 || 1.4.5", "jsr:a@1.2.3 || 1.4.5"); // note: this is the serialized form--it's not a url
+  }
+
+  #[test]
+  fn serialize_deserialize_tag_package_req_with_v() {
+    // note: this specifier is a tag and not a version
+    let package_req = JsrDepPackageReq::from_str("npm:test@v1.0").unwrap();
+    assert!(package_req.req.version_req.tag().is_some());
+    let json = serde_json::to_string(&package_req).unwrap();
+    assert_eq!(json, "\"npm:test@v1.0\"");
+    let result = serde_json::from_str::<JsrDepPackageReq>(&json).unwrap();
+    assert!(result.req.version_req.tag().is_some());
+    assert_eq!(result, package_req);
   }
 }
