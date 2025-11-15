@@ -727,6 +727,115 @@ mod test {
   }
 
   #[test]
+  fn serialize_deserialize_loose_package_req() {
+    fn run_test(input: &str) {
+      let package_req = PackageReq::from_str_loose(input).unwrap();
+      let json = serde_json::to_string(&package_req).unwrap();
+      let result = serde_json::from_str::<PackageReq>(&json).unwrap();
+      assert_eq!(result, package_req);
+    }
+
+    // Basic version requirements
+    run_test("pkg@1.2.3");
+    run_test("pkg@1.2");
+    run_test("pkg@1");
+    run_test("pkg@0.0.1");
+
+    // Caret requirements
+    run_test("pkg@^1.2.3");
+    run_test("pkg@^0.2.3");
+    run_test("pkg@^0.0.3");
+    run_test("pkg@^1.2");
+    run_test("pkg@^1");
+
+    // Tilde requirements
+    run_test("pkg@~1.2.3");
+    run_test("pkg@~1.2");
+    run_test("pkg@~1");
+
+    // Comparison operators
+    run_test("pkg@>1.2.3");
+    run_test("pkg@>=1.2.3");
+    run_test("pkg@<2.0.0");
+    run_test("pkg@<=2.0.0");
+    run_test("pkg@=1.2.3");
+
+    // Wildcards
+    run_test("pkg@*");
+    run_test("pkg@1.x");
+    run_test("pkg@1.2.x");
+    run_test("pkg@1.X");
+    run_test("pkg@1.2.X");
+
+    // Range requirements
+    run_test("pkg@1.2.3 - 2.3.4");
+    run_test("pkg@1.0 - 2.0");
+    run_test("pkg@1 - 2");
+    run_test("pkg@>=1.2.3 <2.0.0");
+    run_test("pkg@>=1.0.0 <=2.0.0");
+
+    // OR requirements
+    run_test("pkg@1.2.3 || 2.0.0");
+    run_test("pkg@^1.0.0 || ^2.0.0");
+    run_test("pkg@1 || 2 || 3");
+    run_test("pkg@>=1.0.0 <2.0.0 || >=3.0.0");
+
+    // Scoped packages
+    run_test("@scope/pkg@1.2.3");
+    run_test("@scope/pkg@^1.0.0");
+    run_test("@scope/pkg@~1.2.3");
+    run_test("@scope/pkg@>=1.0.0");
+    run_test("@scope/pkg@*");
+    run_test("@scope/pkg@1.x");
+    run_test("@scope/pkg@1.2.3 - 2.0.0");
+    run_test("@scope/pkg@1 || 2");
+
+    // Complex version combinations
+    run_test("pkg@>=1.2.3 <2.0.0 || >=3.0.0 <4.0.0");
+    run_test("pkg@^1.2.3 || ~2.3.4 || >=3.0.0");
+    run_test("@scope/pkg@>=1.0.0 <1.5.0 || >=2.0.0 <3.0.0");
+
+    // Pre-release versions
+    run_test("pkg@1.2.3-alpha");
+    run_test("pkg@1.2.3-beta.1");
+    run_test("pkg@1.2.3-rc.1");
+    run_test("pkg@^1.2.3-alpha");
+    run_test("@scope/pkg@1.0.0-beta.2");
+
+    // Build metadata
+    run_test("pkg@1.2.3+build.123");
+    run_test("pkg@1.2.3-alpha+build");
+    run_test("@scope/pkg@1.0.0+20130313144700");
+
+    // Edge cases
+    run_test("pkg@0.0.0");
+    run_test("pkg@02.003.02");
+    run_test("pkg@999.999.999");
+    run_test("@my-scope/my-package@1.2.3");
+    run_test("@a/b@1.0.0");
+
+    // Multiple constraints
+    run_test("pkg@>=1.2.3 <=2.0.0");
+    run_test("pkg@>1.0.0 <2.0.0");
+    run_test("pkg@>=0.1.0 <0.2.0");
+
+    // X-range variations
+    run_test("pkg@1.2.*");
+    run_test("pkg@1.*");
+    run_test("pkg@*.x");
+
+    // Complex OR chains
+    run_test("pkg@1.0.0 || 1.1.0 || 1.2.0");
+    run_test("pkg@^1.0.0 || ^2.0.0 || ^3.0.0");
+    run_test("@scope/pkg@>=1.0.0 || >=2.0.0 || >=3.0.0");
+
+    // Hyphen ranges with different precisions
+    run_test("pkg@1.2.3 - 1.2.5");
+    run_test("pkg@1.0.0 - 1.9.9");
+    run_test("pkg@0.1.0 - 0.9.0");
+  }
+
+  #[test]
   fn test_package_req_deserializable() {
     fn run_test(text: &str) {
       let start = PackageReq::from_str_loose(text).unwrap();
