@@ -21,6 +21,7 @@ pub mod jsr;
 pub mod npm;
 pub mod package;
 mod range;
+mod range_set_or_tag;
 mod specifier;
 mod string;
 
@@ -38,6 +39,8 @@ pub use self::range::VersionBoundKind;
 pub use self::range::VersionRange;
 pub use self::range::VersionRangeSet;
 pub use self::range::XRange;
+pub use self::range_set_or_tag::PackageTag;
+pub use self::range_set_or_tag::RangeSetOrTag;
 
 /// Specifier that points to the wildcard version.
 pub static WILDCARD_VERSION_REQ: Lazy<VersionReq> =
@@ -223,41 +226,6 @@ impl std::cmp::Ord for Version {
 pub(crate) fn is_valid_tag(value: &str) -> bool {
   // we use the same rules as npm tags
   npm::is_valid_npm_tag(value)
-}
-
-pub type PackageTag = SmallStackString;
-
-#[derive(
-  Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, CapacityDisplay,
-)]
-pub enum RangeSetOrTag {
-  RangeSet(VersionRangeSet),
-  Tag(PackageTag),
-}
-
-impl<'a> StringAppendable<'a> for &'a RangeSetOrTag {
-  fn append_to_builder<TString: StringType>(
-    self,
-    builder: &mut StringBuilder<'a, TString>,
-  ) {
-    match self {
-      RangeSetOrTag::RangeSet(range_set) => builder.append(range_set),
-      RangeSetOrTag::Tag(tag) => builder.append(tag),
-    }
-  }
-}
-
-impl RangeSetOrTag {
-  pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
-    match (self, other) {
-      (RangeSetOrTag::RangeSet(a), RangeSetOrTag::RangeSet(b)) => {
-        a.intersects_set(b)
-      }
-      (RangeSetOrTag::RangeSet(_), RangeSetOrTag::Tag(_))
-      | (RangeSetOrTag::Tag(_), RangeSetOrTag::RangeSet(_)) => false,
-      (RangeSetOrTag::Tag(a), RangeSetOrTag::Tag(b)) => a == b,
-    }
-  }
 }
 
 /// A version constraint.
