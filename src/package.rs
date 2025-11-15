@@ -13,9 +13,6 @@ use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
 
-use crate::npm::NpmVersionReqParseError;
-use crate::range::RangeBound;
-use crate::range::VersionBound;
 use crate::RangeSetOrTag;
 use crate::Version;
 use crate::VersionBoundKind;
@@ -25,6 +22,9 @@ use crate::VersionReq;
 use crate::VersionReqNormalizedParseError;
 use crate::VersionReqSpecifierParseError;
 use crate::WILDCARD_VERSION_REQ;
+use crate::npm::NpmVersionReqParseError;
+use crate::range::RangeBound;
+use crate::range::VersionBound;
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum PackageKind {
@@ -127,19 +127,18 @@ impl PackageReqReference {
       Some(PackageSubPath::from_str(sub_path))
     };
 
-    if let Some(sub_path) = &sub_path {
-      if req.version_req.version_text() == "*" {
-        if let Some(at_index) = sub_path.rfind('@') {
-          let (new_sub_path, version) = sub_path.split_at(at_index);
-          return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
-            Box::new(PackageReqReferenceInvalidWithVersionParseError {
-              kind,
-              current: format!("{req}/{sub_path}"),
-              suggested: format!("{req}{version}/{new_sub_path}"),
-            }),
-          ));
-        }
-      }
+    if let Some(sub_path) = &sub_path
+      && req.version_req.version_text() == "*"
+      && let Some(at_index) = sub_path.rfind('@')
+    {
+      let (new_sub_path, version) = sub_path.split_at(at_index);
+      return Err(PackageReqReferenceParseError::InvalidPathWithVersion(
+        Box::new(PackageReqReferenceInvalidWithVersionParseError {
+          kind,
+          current: format!("{req}/{sub_path}"),
+          suggested: format!("{req}{version}/{new_sub_path}"),
+        }),
+      ));
     }
 
     Ok(Self { req, sub_path })

@@ -139,9 +139,9 @@ macro_rules! shared {
 
 #[cfg(any(unix, windows))]
 mod stack_string {
+  use serde::Deserializer;
   use serde::de::Error;
   use serde::de::Visitor;
-  use serde::Deserializer;
   use std::fmt;
 
   use super::*;

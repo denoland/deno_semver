@@ -6,9 +6,6 @@ use monch::*;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::common::logical_or;
-use crate::common::primitive;
-use crate::npm::is_valid_npm_tag;
 use crate::CowVec;
 use crate::Partial;
 use crate::SmallStackString;
@@ -16,6 +13,9 @@ use crate::StackString;
 use crate::VersionRange;
 use crate::VersionRangeSet;
 use crate::XRange;
+use crate::common::logical_or;
+use crate::common::primitive;
+use crate::npm::is_valid_npm_tag;
 
 pub type PackageTag = SmallStackString;
 
@@ -220,7 +220,7 @@ fn nr(input: &str) -> ParseResult<'_, u64> {
       return ParseError::fail(
         input,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-      )
+      );
     }
   };
   Ok((input, val))

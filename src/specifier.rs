@@ -3,15 +3,15 @@
 use monch::*;
 use thiserror::Error;
 
-use crate::range::Partial;
-use crate::range::VersionRange;
-use crate::range::VersionRangeSet;
-use crate::range::XRange;
 use crate::CowVec;
 use crate::PackageTag;
 use crate::RangeSetOrTag;
 use crate::VersionPreOrBuild;
 use crate::VersionReq;
+use crate::range::Partial;
+use crate::range::VersionRange;
+use crate::range::VersionRangeSet;
+use crate::range::XRange;
 
 use crate::is_valid_tag;
 
@@ -127,7 +127,7 @@ fn nr(input: &str) -> ParseResult<'_, u64> {
         return ParseError::fail(
           input,
           format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-        )
+        );
       }
     };
     Ok((input, val))

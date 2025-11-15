@@ -13,6 +13,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
 
+use crate::CowVec;
+use crate::PackageTag;
 use crate::common::logical_and;
 use crate::common::logical_or;
 use crate::common::primitive;
@@ -26,8 +28,6 @@ use crate::package::PackageReq;
 use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
 use crate::range_set_or_tag::RangeOrInvalid;
-use crate::CowVec;
-use crate::PackageTag;
 
 use super::Partial;
 use super::RangeSetOrTag;
@@ -308,7 +308,7 @@ fn nr(input: &str) -> ParseResult<'_, u64> {
       return ParseError::fail(
         input,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
-      )
+      );
     }
   };
   Ok((input, val))
