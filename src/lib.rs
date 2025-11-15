@@ -24,6 +24,7 @@ mod range;
 mod range_set_or_tag;
 mod specifier;
 mod string;
+mod common;
 
 /// A smaller two-byte vector.
 pub type CowVec<T> = ecow::EcoVec<T>;
