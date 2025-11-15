@@ -32,6 +32,7 @@ pub use string::SmallStackString;
 pub use string::StackString;
 
 pub use self::specifier::VersionReqSpecifierParseError;
+pub use self::specifier::VersionReqNormalizedParseError;
 
 pub use self::range::Partial;
 pub use self::range::RangeBound;
@@ -257,6 +258,12 @@ impl VersionReq {
     inner: RangeSetOrTag,
   ) -> Self {
     Self { raw_text, inner }
+  }
+
+  pub fn parse_from_normalized(
+    specifier: &str,
+  ) -> Result<Self, VersionReqNormalizedParseError> {
+    specifier::parse_version_req_from_normalized(specifier)
   }
 
   pub fn parse_from_specifier(

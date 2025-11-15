@@ -213,7 +213,7 @@ impl<'de> Deserialize<'de> for JsrDepPackageReq {
     D: serde::Deserializer<'de>,
   {
     let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
-    match Self::from_str(&text) {
+    match Self::from_str_normalized(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -240,11 +240,16 @@ impl JsrDepPackageReq {
     Self::from_str_inner(text, PackageReq::from_str)
   }
 
-  #[allow(clippy::should_implement_trait)]
   pub fn from_str_loose(
     text: &str,
   ) -> Result<Self, JsrDepPackageReqParseError> {
     Self::from_str_inner(text, PackageReq::from_str_loose)
+  }
+
+  pub fn from_str_normalized(
+    text: &str,
+  ) -> Result<Self, JsrDepPackageReqParseError> {
+    Self::from_str_inner(text, PackageReq::from_str_normalized)
   }
 
   fn from_str_inner(

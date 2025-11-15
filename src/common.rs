@@ -23,9 +23,9 @@ pub fn logical_and(input: &str) -> ParseResult<&str> {
 pub fn partial<'a>(xr: impl Fn(&'a str) -> ParseResult<'a, XRange>) -> impl Fn(&'a str) -> ParseResult<'a, Partial> {
   move |input| {
     let (input, major) = xr(input)?;
-    let (input, maybe_minor) = maybe(preceded(ch('.'), |input| xr(input)))(input)?;
+    let (input, maybe_minor) = maybe(preceded(ch('.'), &xr))(input)?;
     let (input, maybe_patch) = if maybe_minor.is_some() {
-      maybe(preceded(ch('.'), |input| xr(input)))(input)?
+      maybe(preceded(ch('.'), &xr))(input)?
     } else {
       (input, None)
     };
@@ -49,7 +49,7 @@ pub fn partial<'a>(xr: impl Fn(&'a str) -> ParseResult<'a, XRange>) -> impl Fn(&
 }
 
 #[derive(Debug, Clone, Default)]
-struct Qualifier {
+pub struct Qualifier {
   pub pre: CowVec<VersionPreOrBuild>,
   pub build: CowVec<VersionPreOrBuild>,
 }

@@ -13,6 +13,7 @@ use std::cmp::Ordering;
 use thiserror::Error;
 use url::Url;
 
+use crate::VersionReqNormalizedParseError;
 use crate::npm::NpmVersionReqParseError;
 use crate::range::RangeBound;
 use crate::range::VersionBound;
@@ -164,6 +165,9 @@ pub enum PackageReqPartsParseError {
   #[class(inherit)]
   #[error(transparent)]
   NpmVersionReq(NpmVersionReqParseError),
+  #[class(inherit)]
+  #[error(transparent)]
+  NormalizedVersionReq(VersionReqNormalizedParseError),
 }
 
 #[derive(Error, Debug, Clone, JsError)]
@@ -211,12 +215,15 @@ impl PackageReq {
     Self::from_str_inner(text, Self::parse_with_path_loose)
   }
 
+  pub fn from_str_normalized(text: &str) -> Result<Self, PackageReqParseError> {
+    Self::from_str_inner(text, Self::parse_with_path_normalized)
+  }
+
   fn from_str_inner(
     text: &str,
     parse_with_path: impl FnOnce(
       &str,
-    )
-      -> Result<(Self, &str), PackageReqPartsParseError>,
+    ) -> Result<(Self, &str), PackageReqPartsParseError>,
   ) -> Result<Self, PackageReqParseError> {
     fn inner(
       text: &str,
@@ -270,6 +277,15 @@ impl PackageReq {
     PackageReq::parse_with_path(text, |version| {
       VersionReq::parse_from_npm(version)
         .map_err(PackageReqPartsParseError::NpmVersionReq)
+    })
+  }
+
+  fn parse_with_path_normalized(
+    text: &str,
+  ) -> Result<(Self, &str), PackageReqPartsParseError> {
+    PackageReq::parse_with_path(text, |version| {
+      VersionReq::parse_from_normalized(version)
+        .map_err(PackageReqPartsParseError::NormalizedVersionReq)
     })
   }
 
@@ -353,7 +369,7 @@ impl<'de> Deserialize<'de> for PackageReq {
     D: serde::Deserializer<'de>,
   {
     let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
-    match Self::from_str(&text) {
+    match Self::from_str_normalized(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }

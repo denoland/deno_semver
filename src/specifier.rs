@@ -58,6 +58,28 @@ pub fn parse_version_req_from_specifier(
   .map_err(|err| VersionReqSpecifierParseError { source: err })
 }
 
+#[derive(Error, Debug, Clone, deno_error::JsError, PartialEq, Eq)]
+#[class(type)]
+#[error("Invalid normalized version requirement")]
+pub struct VersionReqNormalizedParseError {
+  #[source]
+  source: monch::ParseErrorFailureError,
+}
+
+pub fn parse_version_req_from_normalized(
+  text: &str,
+) -> Result<VersionReq, VersionReqNormalizedParseError> {
+  with_failure_handling(|input| {
+    map(RangeSetOrTag::parse, |inner| {
+      VersionReq::from_raw_text_and_inner(
+        crate::SmallStackString::from_str(input),
+        inner,
+      )
+    })(input)
+  })(text)
+  .map_err(|err| VersionReqNormalizedParseError { source: err })
+}
+
 // Note: Although the code below looks very similar to what's used for
 // parsing npm version requirements, the code here is more strict
 // in order to not allow for people to get ridiculous when using

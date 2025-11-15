@@ -27,13 +27,11 @@ use crate::package::PackageReqReference;
 use crate::package::PackageReqReferenceParseError;
 use crate::CowVec;
 use crate::PackageTag;
-use crate::VersionPreOrBuild;
 use crate::range_set_or_tag::RangeOrInvalid;
 
 use super::Partial;
 use super::RangeSetOrTag;
 use super::Version;
-use super::VersionBoundKind;
 use super::VersionRange;
 use super::VersionRangeSet;
 use super::VersionReq;

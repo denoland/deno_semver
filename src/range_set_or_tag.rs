@@ -10,8 +10,6 @@ use crate::CowVec;
 use crate::Partial;
 use crate::SmallStackString;
 use crate::StackString;
-use crate::VersionBoundKind;
-use crate::VersionPreOrBuild;
 use crate::VersionRange;
 use crate::VersionRangeSet;
 use crate::XRange;
@@ -48,28 +46,20 @@ impl Serialize for RangeSetOrTag {
   }
 }
 
-impl Deserialize for RangeSetOrTag {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de> {
-          
-    }
-}
-
-impl RangeSetOrTag {
-  pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
-    match (self, other) {
-      (RangeSetOrTag::RangeSet(a), RangeSetOrTag::RangeSet(b)) => {
-        a.intersects_set(b)
-      }
-      (RangeSetOrTag::RangeSet(_), RangeSetOrTag::Tag(_))
-      | (RangeSetOrTag::Tag(_), RangeSetOrTag::RangeSet(_)) => false,
-      (RangeSetOrTag::Tag(a), RangeSetOrTag::Tag(b)) => a == b,
-    }
+impl<'de> Deserialize<'de> for RangeSetOrTag {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    let s = String::deserialize(deserializer)?;
+    let result = with_failure_handling(Self::parse)(&s);
+    result
+      .map_err(|err| serde::de::Error::custom(format!("{}", err)))
   }
 }
 
-fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
+impl RangeSetOrTag {
+pub(crate) fn parse(input: &str) -> ParseResult<'_, RangeSetOrTag> {
   if input.is_empty() {
     return Ok((
       input,
@@ -108,6 +98,19 @@ fn inner(input: &str) -> ParseResult<RangeSetOrTag> {
     .collect::<Result<CowVec<_>, _>>()?;
   Ok((input, RangeSetOrTag::RangeSet(VersionRangeSet(ranges))))
 }
+
+  pub fn intersects(&self, other: &RangeSetOrTag) -> bool {
+    match (self, other) {
+      (RangeSetOrTag::RangeSet(a), RangeSetOrTag::RangeSet(b)) => {
+        a.intersects_set(b)
+      }
+      (RangeSetOrTag::RangeSet(_), RangeSetOrTag::Tag(_))
+      | (RangeSetOrTag::Tag(_), RangeSetOrTag::RangeSet(_)) => false,
+      (RangeSetOrTag::Tag(a), RangeSetOrTag::Tag(b)) => a == b,
+    }
+  }
+}
+
 
 pub(crate) enum RangeOrInvalid<'a> {
   Range(VersionRange),
@@ -169,8 +172,20 @@ fn invalid_range(input: &str) -> ParseResult<&str> {
   Ok((input, text))
 }
 
-// range ::= primitive | partial | tilde | caret
+// range ::= simple ( ' ' simple )
 fn range(input: &str) -> ParseResult<VersionRange> {
+  map(separated_list(simple, whitespace), |ranges| {
+    let mut final_range = VersionRange::all();
+    for range in ranges {
+      final_range = final_range.clamp(&range);
+    }
+    final_range
+  })
+  (input)
+}
+
+// simple ::= primitive | partial | tilde | caret
+fn simple(input: &str) -> ParseResult<VersionRange> {
   or4(
     map(preceded(ch('~'), partial), |partial| {
       partial.as_tilde_version_range()
