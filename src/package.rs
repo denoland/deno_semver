@@ -353,7 +353,7 @@ impl<'de> Deserialize<'de> for PackageReq {
     D: serde::Deserializer<'de>,
   {
     let text: Cow<'de, str> = Deserialize::deserialize(deserializer)?;
-    match Self::from_str_loose(&text) {
+    match Self::from_str(&text) {
       Ok(req) => Ok(req),
       Err(err) => Err(serde::de::Error::custom(err)),
     }
@@ -694,6 +694,15 @@ mod test {
     let package_req = PackageReq::from_str("test@^1.0").unwrap();
     let json = serde_json::to_string(&package_req).unwrap();
     assert_eq!(json, "\"test@1\"");
+    let result = serde_json::from_str::<PackageReq>(&json).unwrap();
+    assert_eq!(result, package_req);
+  }
+
+  #[test]
+  fn serialize_deserialize_tag_package_req_with_v() {
+    let package_req = PackageReq::from_str("test@v1.0").unwrap();
+    let json = serde_json::to_string(&package_req).unwrap();
+    assert_eq!(json, "\"test@v1.0\"");
     let result = serde_json::from_str::<PackageReq>(&json).unwrap();
     assert_eq!(result, package_req);
   }
