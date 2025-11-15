@@ -1,4 +1,4 @@
-// Copyright 2018-2023 the Deno authors. All rights reserved. MIT license.
+// Copyright 2018-2025 the Deno authors. All rights reserved. MIT license.
 
 use std::borrow::Cow;
 
@@ -64,7 +64,7 @@ impl JsrPackageReqReference {
   }
 
   /// Package sub path normalized as a JSR export name.
-  pub fn export_name(&self) -> Cow<str> {
+  pub fn export_name(&self) -> Cow<'_, str> {
     normalized_export_name(self.sub_path())
   }
 
@@ -111,7 +111,7 @@ impl JsrPackageNvReference {
   }
 
   /// Package sub path normalized as a JSR export name.
-  pub fn export_name(&self) -> Cow<str> {
+  pub fn export_name(&self) -> Cow<'_, str> {
     normalized_export_name(self.sub_path())
   }
 
@@ -152,7 +152,7 @@ impl<'de> Deserialize<'de> for JsrPackageNvReference {
   }
 }
 
-pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<str> {
+pub fn normalized_export_name(sub_path: Option<&str>) -> Cow<'_, str> {
   let Some(sub_path) = sub_path else {
     return Cow::Borrowed(".");
   };

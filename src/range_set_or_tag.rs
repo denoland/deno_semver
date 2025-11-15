@@ -165,7 +165,7 @@ pub(crate) struct InvalidRange<'a> {
   pub text: &'a str,
 }
 
-fn invalid_range(input: &str) -> ParseResult<&str> {
+fn invalid_range(input: &str) -> ParseResult<'_, &str> {
   let end_index = input.find("||").unwrap_or(input.len());
   let (text, input) = input.split_at(end_index);
   let text = text.trim();
@@ -173,7 +173,7 @@ fn invalid_range(input: &str) -> ParseResult<&str> {
 }
 
 // range ::= simple ( ' ' simple )
-fn range(input: &str) -> ParseResult<VersionRange> {
+fn range(input: &str) -> ParseResult<'_, VersionRange> {
   map(separated_list(simple, whitespace), |ranges| {
     let mut final_range = VersionRange::all();
     for range in ranges {
@@ -184,7 +184,7 @@ fn range(input: &str) -> ParseResult<VersionRange> {
 }
 
 // simple ::= primitive | partial | tilde | caret
-fn simple(input: &str) -> ParseResult<VersionRange> {
+fn simple(input: &str) -> ParseResult<'_, VersionRange> {
   or4(
     map(preceded(ch('~'), partial), |partial| {
       partial.as_tilde_version_range()
@@ -200,7 +200,7 @@ fn simple(input: &str) -> ParseResult<VersionRange> {
 }
 
 // partial ::= xr ( '.' xr ( '.' xr qualifier ? )? )?
-fn partial(input: &str) -> ParseResult<Partial> {
+fn partial(input: &str) -> ParseResult<'_, Partial> {
   crate::common::partial(xr)(input)
 }
 
@@ -210,7 +210,7 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
 }
 
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
-fn nr(input: &str) -> ParseResult<u64> {
+fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
   let (input, result) =
     if_not_empty(substring(skip_while(|c| c.is_ascii_digit())))(input)?;
