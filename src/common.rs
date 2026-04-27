@@ -81,24 +81,33 @@ fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
 
 // parts ::= part ( '.' part ) *
 fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
-  if_true(
-    map(separated_list(part, ch('.')), |text| {
-      text
-        .into_iter()
-        .map(VersionPreOrBuild::from_str)
-        .collect::<CowVec<_>>()
-    }),
-    |items| !items.is_empty(),
-  )(input)
+  // build the `CowVec` directly via `separated_fold` instead of going through
+  // a `Vec<&str>` intermediate.
+  let (rest, parts) = separated_fold(
+    part,
+    ch('.'),
+    CowVec::<VersionPreOrBuild>::new(),
+    |mut acc, s| {
+      acc.push(VersionPreOrBuild::from_str(s));
+      acc
+    },
+  )(input)?;
+  if parts.is_empty() {
+    return ParseError::backtrace();
+  }
+  Ok((rest, parts))
 }
 
 // part ::= nr | [-0-9A-Za-z]+
 fn part(input: &str) -> ParseResult<'_, &str> {
-  // nr is in the other set, so don't bother checking for it
-  if_true(
-    take_while(|c| c.is_ascii_alphanumeric() || c == '-'),
-    |result| !result.is_empty(),
-  )(input)
+  // nr is in the other set, so don't bother checking for it.
+  // ASCII-only predicate, so use the byte-based scanner.
+  let (rest, result) =
+    take_while_byte(|b| b.is_ascii_alphanumeric() || b == b'-')(input)?;
+  if result.is_empty() {
+    return ParseError::backtrace();
+  }
+  Ok((rest, result))
 }
 
 #[derive(Debug, Clone, Copy)]

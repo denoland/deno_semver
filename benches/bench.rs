@@ -63,3 +63,63 @@ mod version_req {
     VersionReq::parse_from_npm("^1.1.1-pre").unwrap()
   }
 }
+
+mod parse_npm_version_req {
+  use deno_semver::VersionReq;
+
+  #[divan::bench(sample_size = 1000)]
+  fn caret_simple() -> usize {
+    VersionReq::parse_from_npm("^1.2.3")
+      .unwrap()
+      .version_text()
+      .len()
+  }
+
+  #[divan::bench(sample_size = 1000)]
+  fn caret_pre_build() -> usize {
+    VersionReq::parse_from_npm("^1.2.3-beta.1+build.42")
+      .unwrap()
+      .version_text()
+      .len()
+  }
+
+  #[divan::bench(sample_size = 1000)]
+  fn hyphen_range() -> usize {
+    VersionReq::parse_from_npm("1.2.3 - 2.3.4")
+      .unwrap()
+      .version_text()
+      .len()
+  }
+
+  #[divan::bench(sample_size = 1000)]
+  fn or_chain() -> usize {
+    VersionReq::parse_from_npm("^1.2.3 || ~2.3.4 || >=3.0.0 <4.0.0")
+      .unwrap()
+      .version_text()
+      .len()
+  }
+
+  #[divan::bench(sample_size = 1000)]
+  fn anded_range() -> usize {
+    VersionReq::parse_from_npm(">=1.2.3 <2.0.0")
+      .unwrap()
+      .version_text()
+      .len()
+  }
+}
+
+mod parse_npm_version {
+  use deno_semver::Version;
+
+  #[divan::bench(sample_size = 1000)]
+  fn simple() -> u64 {
+    Version::parse_from_npm("1.2.3").unwrap().major
+  }
+
+  #[divan::bench(sample_size = 1000)]
+  fn pre_build() -> u64 {
+    Version::parse_from_npm("1.2.3-beta.1.alpha+build.42")
+      .unwrap()
+      .major
+  }
+}

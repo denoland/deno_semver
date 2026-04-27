@@ -174,13 +174,12 @@ fn invalid_range(input: &str) -> ParseResult<'_, &str> {
 
 // range ::= simple ( ' ' simple )
 fn range(input: &str) -> ParseResult<'_, VersionRange> {
-  map(separated_list(simple, whitespace), |ranges| {
-    let mut final_range = VersionRange::all();
-    for range in ranges {
-      final_range = final_range.clamp(&range);
-    }
-    final_range
-  })(input)
+  separated_fold(
+    simple,
+    whitespace,
+    VersionRange::all(),
+    |acc, range| acc.clamp(&range),
+  )(input)
 }
 
 // simple ::= primitive | partial | tilde | caret
@@ -212,16 +211,18 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
 fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
-  let (input, result) =
-    if_not_empty(substring(skip_while(|c| c.is_ascii_digit())))(input)?;
+  let (rest, result) = take_while_byte(|b| b.is_ascii_digit())(input)?;
+  if result.is_empty() {
+    return ParseError::backtrace();
+  }
   let val = match result.parse::<u64>() {
     Ok(val) => val,
     Err(err) => {
       return ParseError::fail(
-        input,
+        rest,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
       );
     }
   };
-  Ok((input, val))
+  Ok((rest, val))
 }
