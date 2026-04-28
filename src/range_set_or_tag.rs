@@ -174,12 +174,9 @@ fn invalid_range(input: &str) -> ParseResult<'_, &str> {
 
 // range ::= simple ( ' ' simple )
 fn range(input: &str) -> ParseResult<'_, VersionRange> {
-  separated_fold(
-    simple,
-    whitespace,
-    VersionRange::all(),
-    |acc, range| acc.clamp(&range),
-  )(input)
+  separated_fold(simple, whitespace, VersionRange::all(), |acc, range| {
+    acc.clamp(&range)
+  })(input)
 }
 
 // simple ::= primitive | partial | tilde | caret
