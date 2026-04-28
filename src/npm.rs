@@ -186,13 +186,14 @@ fn range(input: &str) -> ParseResult<'_, VersionRange> {
       start: hyphen.start.as_lower_bound(),
       end: hyphen.end.as_upper_bound(),
     }),
-    map(separated_list(simple, range_separator), |ranges| {
-      let mut final_range = VersionRange::all();
-      for range in ranges {
-        final_range = final_range.clamp(&range);
-      }
-      final_range
-    }),
+    |input| {
+      separated_fold(
+        simple,
+        range_separator,
+        VersionRange::all(),
+        |acc, range| acc.clamp(&range),
+      )(input)
+    },
   )(input)
 }
 
@@ -253,7 +254,7 @@ fn tilde(input: &str) -> ParseResult<'_, ()> {
   fn raw_tilde(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
-        terminated(or(tag("~>"), tag("~")), skip_while(|c| c == '=')),
+        terminated(or(tag("~>"), tag("~")), skip_while_byte(|b| b == b'=')),
         skip_whitespace_or_v,
       ),
       |_| (),
@@ -270,7 +271,7 @@ fn caret(input: &str) -> ParseResult<'_, ()> {
   fn raw_caret(input: &str) -> ParseResult<'_, ()> {
     map(
       pair(
-        terminated(tag("^"), skip_while(|c| c == '=')),
+        terminated(tag("^"), skip_while_byte(|b| b == b'=')),
         skip_whitespace_or_v,
       ),
       |_| (),
@@ -300,18 +301,20 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
 fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
-  let (input, result) =
-    if_not_empty(substring(skip_while(|c| c.is_ascii_digit())))(input)?;
+  let (rest, result) = take_while_byte(|b| b.is_ascii_digit())(input)?;
+  if result.is_empty() {
+    return ParseError::backtrace();
+  }
   let val = match result.parse::<u64>() {
     Ok(val) => val,
     Err(err) => {
       return ParseError::fail(
-        input,
+        rest,
         format!("Error parsing '{result}' to u64.\n\n{err:#}"),
       );
     }
   };
-  Ok((input, val))
+  Ok((rest, val))
 }
 
 /// A reference to an npm package's name, version constraint, and potential sub path.

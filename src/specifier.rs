@@ -119,7 +119,7 @@ fn nr(input: &str) -> ParseResult<'_, u64> {
   or(map(tag("0"), |_| 0), move |input| {
     let (input, result) = if_not_empty(substring(pair(
       if_true(next_char, |c| c.is_ascii_digit() && *c != '0'),
-      skip_while(|c| c.is_ascii_digit()),
+      skip_while_byte(|b| b.is_ascii_digit()),
     )))(input)?;
     let val = match result.parse::<u64>() {
       Ok(val) => val,
@@ -165,24 +165,30 @@ fn build(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
 
 // parts ::= part ( '.' part ) *
 fn parts(input: &str) -> ParseResult<'_, CowVec<VersionPreOrBuild>> {
-  if_true(
-    map(separated_list(part, ch('.')), |text| {
-      text
-        .into_iter()
-        .map(VersionPreOrBuild::from_str)
-        .collect::<CowVec<_>>()
-    }),
-    |items| !items.is_empty(),
-  )(input)
+  let (rest, parts) = separated_fold(
+    part,
+    ch('.'),
+    CowVec::<VersionPreOrBuild>::new(),
+    |mut acc, s| {
+      acc.push(VersionPreOrBuild::from_str(s));
+      acc
+    },
+  )(input)?;
+  if parts.is_empty() {
+    return ParseError::backtrace();
+  }
+  Ok((rest, parts))
 }
 
 // part ::= nr | [-0-9A-Za-z]+
 fn part(input: &str) -> ParseResult<'_, &str> {
   // nr is in the other set, so don't bother checking for it
-  if_true(
-    take_while(|c| c.is_ascii_alphanumeric() || c == '-'),
-    |result| !result.is_empty(),
-  )(input)
+  let (rest, result) =
+    take_while_byte(|b| b.is_ascii_alphanumeric() || b == b'-')(input)?;
+  if result.is_empty() {
+    return ParseError::backtrace();
+  }
+  Ok((rest, result))
 }
 
 #[cfg(test)]
