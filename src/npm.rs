@@ -304,16 +304,19 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
 fn version_dot<'a>(
   input: &'a str,
   full_text: &'a str,
-  next_component: &str,
+  next_component: &'static str,
 ) -> ParseResult<'a, char> {
   match ch('.')(input) {
     Ok(result) => Ok(result),
-    Err(_) => ParseError::fail(
+    // a missing separator backtraces; turn that into a descriptive failure,
+    // but preserve any real failure ch might surface in the future
+    Err(ParseError::Backtrace) => ParseError::fail(
       full_text,
       format!(
         "Missing {next_component} version. Versions must be in the form MAJOR.MINOR.PATCH (ex. 1.0.0)."
       ),
     ),
+    Err(failure) => Err(failure),
   }
 }
 
