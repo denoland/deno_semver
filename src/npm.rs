@@ -75,9 +75,9 @@ pub fn parse_npm_version(text: &str) -> Result<Version, NpmVersionParseError> {
     let (input, _) = maybe(ch('v'))(input)?; // skip leading v
     let (input, _) = skip_whitespace(input)?;
     let (input, major) = nr(input)?;
-    let (input, _) = ch('.')(input)?;
+    let (input, _) = version_dot(input, text, "minor")?;
     let (input, minor) = nr(input)?;
-    let (input, _) = ch('.')(input)?;
+    let (input, _) = version_dot(input, text, "patch")?;
     let (input, patch) = nr(input)?;
     let (input, q) = maybe(qualifier)(input)?;
     let q = q.unwrap_or_default();
@@ -298,6 +298,28 @@ fn xr(input: &str) -> ParseResult<'_, XRange> {
   )(input)
 }
 
+/// Parses the `.` separating two version components, emitting a descriptive
+/// error that names the missing component when it is absent (e.g. `1.0` is
+/// missing the patch version) instead of the generic "Unexpected character.".
+fn version_dot<'a>(
+  input: &'a str,
+  full_text: &'a str,
+  next_component: &'static str,
+) -> ParseResult<'a, char> {
+  match ch('.')(input) {
+    Ok(result) => Ok(result),
+    // a missing separator backtraces; turn that into a descriptive failure,
+    // but preserve any real failure ch might surface in the future
+    Err(ParseError::Backtrace) => ParseError::fail(
+      full_text,
+      format!(
+        "Missing {next_component} version. Versions must be in the form MAJOR.MINOR.PATCH (ex. 1.0.0)."
+      ),
+    ),
+    Err(failure) => Err(failure),
+  }
+}
+
 // nr ::= '0' | ['1'-'9'] ( ['0'-'9'] ) *
 fn nr(input: &str) -> ParseResult<'_, u64> {
   // we do loose parsing to support people doing stuff like 01.02.03
@@ -464,6 +486,35 @@ mod tests {
   #[test]
   pub fn npm_version_req_with_v() {
     assert!(parse_npm_version_req("v1.0.0").is_ok());
+  }
+
+  #[test]
+  pub fn npm_version_missing_patch() {
+    let err = parse_npm_version("1.0").unwrap_err();
+    assert_eq!(
+      err.message(),
+      "Missing patch version. Versions must be in the form MAJOR.MINOR.PATCH (ex. 1.0.0)."
+    );
+    // the snippet points at the whole version, not the empty tail
+    assert_eq!(err.source.code_snippet.as_deref(), Some("1.0"));
+  }
+
+  #[test]
+  pub fn npm_version_missing_minor() {
+    let err = parse_npm_version("1").unwrap_err();
+    assert_eq!(
+      err.message(),
+      "Missing minor version. Versions must be in the form MAJOR.MINOR.PATCH (ex. 1.0.0)."
+    );
+    assert_eq!(err.source.code_snippet.as_deref(), Some("1"));
+  }
+
+  #[test]
+  pub fn npm_version_full_still_parses() {
+    let v = parse_npm_version("1.2.3").unwrap();
+    assert_eq!(v.major, 1);
+    assert_eq!(v.minor, 2);
+    assert_eq!(v.patch, 3);
   }
 
   #[test]
